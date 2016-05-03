@@ -35,6 +35,17 @@
 #include "uart.h"
 #include "zx_if.h"
 #include "leds.h"
+#include "qrom.h"
+#include "raiders.h"
+#include "zxtest.h"
+#include "mem_loader.h"
+#include "rtype_scr.h"
+
+
+
+#define MY_ROM_SIZE 24
+uint8_t myrom[MY_ROM_SIZE] = {0xf3, 0x3e, 0x02, 0xd3, 0xfe, 0x06, 0xff, 0x10,         0xfe, 0x3e, 0x00, 0xd3, 0xfe, 0x06, 0xff, 0x10,
+				0xfe, 0xc3, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00 		};
 
 
 typedef struct {
@@ -43,7 +54,7 @@ typedef struct {
 	uint32_t operation_length;
 } memory_operation_t;
 
-#define MEMORY_OPERATIONS_LENGTH 400
+#define MEMORY_OPERATIONS_LENGTH 200
 memory_operation_t memory_operations[MEMORY_OPERATIONS_LENGTH];
 
 int operations = 0;
@@ -59,7 +70,7 @@ void dump_memory_array(void) {
 	}
 }
 
-void PININT_IRQ_HANDLER_RD(void)
+void PININT_IRQ_HANDLER_RD_xxxx(void)
 {
 	// now 12 cycles (ie. 59ns @ 204HMz) elapsed in Core-M4 since interrupt event arose
 	Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX_RD));
@@ -118,22 +129,80 @@ void PININT_IRQ_HANDLER_RD(void)
 	}
 }
 
+__attribute__ ((__section__(".data.ramfunc")))
+void PININT_IRQ_HANDLER_RD_xxx(void)
+{
+	// now 12 cycles (ie. 59ns @ 204HMz) elapsed in Core-M4 since interrupt event arose
+	// handle interrupt
+	// we assume the MEMRQ, IORQ, RD and WR lines are stable here in order to read them and decode the operation
+	int address;
+//	if (ZX_IS_MEM_READ() && ((address = ZX_ADDR()) == 0x1542)) {
+	if (ZX_IS_MEM_READ() && ((address = ZX_ADDR()) < MY_ROM_SIZE)) {
+		// Z80 is doing the memory-read
+		//ZX_ROM_PAGE_OUT();
+		int data;
+		//if (address < MY_ROM_SIZE) {
+			data = myrom[address];
+		//} else {
+//			data = 0;
+		//}
+		ZX_DATA_OUT(data);
+		ZX_DATA_READY_FLAG_ON();
+		int operation_length = 0;
+		while (ZX_IS_MEM_READ()) {
+			//operation_length++;
+		}
+		ZX_DATA_HI_Z();
+		ZX_DATA_READY_FLAG_OFF();
+		//ZX_ROM_ULA_ROMCS();
+		//UART_printf("cnt=%d\r\n", cnt);
+//		memory_operations[operations].address = address;
+//		memory_operations[operations].data = data;
+//		memory_operations[operations].operation_length = operation_length;
+//		operations++;
+//		if (operations >= MEMORY_OPERATIONS_LENGTH) {
+//			ZX_ROM_ULA_ROMCS();
+//			// disable RD/WR interrupts and dump the array
+//			NVIC_DisableIRQ(PININT_NVIC_NAME_RD);
+//			NVIC_DisableIRQ(PININT_NVIC_NAME_WR);
+//			LED1_OFF();
+//			LED2_ON();
+//			dump_memory_array();
+//		}
+	}
+	Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX_RD));
+}
+
 void PININT_IRQ_HANDLER_WR(void)
 {
-	Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX_RD));
+	Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX_WR));
 	// handle interrupt
 }
 
+__attribute__ ((__section__(".data.ramfunc")))
 int main(void)
 {
 	SystemCoreClockUpdate();
+
+	/* Enable Flash acceleration and setup wait states */
+	Chip_CREG_SetFlashAcceleration(MAX_CLOCK_FREQ);
+
 	Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, true);
 	//Chip_GPIO_Init(LPC_GPIO_PORT);
 	UART_Init();
 	leds_init();
 	zx_interface_init();
 
-	UART_printf("Started\r\n");
+	LED1_ON();
+	LED2_OFF();
+
+	ZX_ROM_PAGE_OUT();
+	ZX_DATA_HI_Z();
+	//ZX_ROM_ULA_ROMCS();
+
+	//UART_printf("Started\r\n");
+	int w;
+	volatile int xx;
 
 
 //	while (1) {
@@ -150,9 +219,70 @@ int main(void)
 //		UART_printf("MEM addr=0x%04x data=0x%04x\r\n",	address, data);
 //	}
 
+	ZX_ASSERT_RESET();
+	for (w = 0; w < 10000000; w++) { xx++; }
+	ZX_DEASSERT_RESET();
 
+	LED1_OFF();
+	LED2_ON();
+
+	int address;
+	int data;
+	int data_index = 0;
+	volatile int wt;
 	while (1) {
+		if (ZX_IS_MEM_READ()) {
+			if ((address = ZX_ADDR()) < sizeof(mem_loader)) {
+				ZX_ASSERT_WAIT();
+				data = mem_loader[address];
+				ZX_DATA_OUT(data);
+				ZX_DATA_READY_FLAG_ON();
+				ZX_DEASSERT_WAIT();
+				while (ZX_IS_MEM_READ()) { }
+				ZX_DATA_HI_Z();
+				ZX_DATA_READY_FLAG_OFF();
+			}
+		} else if (ZX_IS_IO_READ()) {
+			address = (ZX_ADDR() & 0xff);
+			if (address == ZX_CONTROL_PORT) {
+				// return 2 if transfer finished
+				ZX_ASSERT_WAIT();
+				if (data_index >= sizeof(rtype_scr)) {
+					data = 2;
+				} else {
+					data = 0;
+				}
+				ZX_DATA_OUT(data);
+				ZX_DATA_READY_FLAG_ON();
+				ZX_DEASSERT_WAIT();
+				while (ZX_IS_IO_READ()) { }
+				ZX_DATA_HI_Z();
+				ZX_DATA_READY_FLAG_OFF();
+			} else if (address == ZX_DATA_PORT) {
+				ZX_ASSERT_WAIT();
+				if (data_index < sizeof(rtype_scr)) {
+					data = rtype_scr[data_index];
+				} else {
+					data = 0;
+				}
+				ZX_DATA_OUT(data);
+				ZX_DATA_READY_FLAG_ON();
+				ZX_DEASSERT_WAIT();
+				while (ZX_IS_IO_READ()) { }
+				ZX_DATA_HI_Z();
+				ZX_DATA_READY_FLAG_OFF();
+				data_index++; // increase data pointer on every IN from ZX_DATA_PORT
+			}
+		}
+
 		//if (ZX_IS_RESET()) goto RESET;
-		__WFI();
+		//__WFI();
+		//for (w = 0; w < 1000; w++);
+		//LED1_ON();
+		//LED2_OFF();
+		//for (w = 0; w < 100; w++);
+		//LED1_OFF();
+		//LED2_ON();
+		//__WFI();
 	} // done (infinite loop)
 }

@@ -7,7 +7,7 @@
 #define UARTx_IRQHandler UART0_IRQHandler
 
 /* Transmit and receive ring buffer sizes */
-#define UART_SRB_SIZE 128	/* Send */
+#define UART_SRB_SIZE 64	/* Send */
 #define UART_RRB_SIZE 32	/* Receive */
 
 

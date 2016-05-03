@@ -22,8 +22,8 @@ void UART_Init() {
 
 	/* Before using the ring buffers, initialize them using the ring
 		   buffer init function */
-	RingBuffer_Init(&rxring, rxbuff, 1, UART_RRB_SIZE);
-	RingBuffer_Init(&txring, txbuff, 1, UART_SRB_SIZE);
+//	RingBuffer_Init(&rxring, rxbuff, 1, UART_RRB_SIZE);
+//	RingBuffer_Init(&txring, txbuff, 1, UART_SRB_SIZE);
 
 
 	/* Reset and enable FIFOs, FIFO trigger level 3 (14 chars) */

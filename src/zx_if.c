@@ -1,7 +1,7 @@
 #include "chip.h"
 #include "zx_if.h"
 
-#define SetDigitalInput(pinX, pinY) Chip_SCU_PinMuxSet(pinX, pinY, (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC0));	// Px_y as digital GPIO
+#define SetDigitalInput(pinX, pinY) Chip_SCU_PinMuxSet(pinX, pinY, (SCU_MODE_INACT | SCU_MODE_INBUFF_EN |  SCU_MODE_FUNC0));	// Px_y as digital GPIO
 #define SetDigitalInputDataBus(pinX, pinY) Chip_SCU_PinMuxSet(pinX, pinY, (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC0));	// Px_y as digital GPIO
 
 void zx_interface_init() {
@@ -46,11 +46,19 @@ void zx_interface_init() {
 	// WR
 	SetDigitalInput(7,3);
 	// RESET (+pullup)
+	ZX_ROM_ULA_ROMCS();
 	Chip_SCU_PinMuxSet(7, 4, (SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC0));
-	//SetDigitalOutput(7,4);
-	SetDigitalInput(7,5);
+	Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 3, 12);
+	// ROMCS
+	Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, 3, 13);
+	Chip_SCU_PinMuxSet(7, 5, (SCU_MODE_INACT | SCU_MODE_FUNC0));
+	// data ready flag
 	SetDigitalInput(7,6);
-	SetDigitalInput(7,7);
+	Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 3, 14);
+	// WAIT
+	ZX_DEASSERT_WAIT();
+	Chip_SCU_PinMuxSet(7, 7, (SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC0));
+	Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 3, 15);
 
 	/* Configure RD interrupt channel for the GPIO3[10] pin in SysCon block */
 	Chip_SCU_GPIOIntPinSel(PININT_INDEX_RD, 3, 10);
@@ -70,9 +78,14 @@ void zx_interface_init() {
 
 	/* Enable RD interrupt in the NVIC */
 	NVIC_ClearPendingIRQ(PININT_NVIC_NAME_RD);
-	NVIC_EnableIRQ(PININT_NVIC_NAME_RD);
+	//NVIC_EnableIRQ(PININT_NVIC_NAME_RD);
 
 	/* Enable WR interrupt in the NVIC */
 	NVIC_ClearPendingIRQ(PININT_NVIC_NAME_WR);
-	NVIC_EnableIRQ(PININT_NVIC_NAME_WR);
+	//NVIC_EnableIRQ(PININT_NVIC_NAME_WR);
+
+	// enable masking on PORT2 (ADDR BUS)
+	LPC_GPIO_PORT->MASK[2] = 0xffff0000UL; // MASK is negative -> we want lowest 16 bits
+	// enable masking on PORT3 (DATA BUS)
+	LPC_GPIO_PORT->MASK[3] = 0xffffff00UL; // MASK is negative -> we want lowest 8 bits
 }
