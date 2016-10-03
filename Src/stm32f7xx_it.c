@@ -187,29 +187,6 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
-* @brief This function handles EXTI line[9:5] interrupts.
-*/
-//void EXTI9_5_IRQHandler(void)
-//{
-//  /* USER CODE BEGIN EXTI9_5_IRQn 0 */
-//
-//  // call (actually inline) our interrupt handler routine, skip the pre-generated code
-//
-//  zx_rd_wr_handler();
-//
-//  #ifdef NOT_DEFINED
-//
-//  /* USER CODE END EXTI9_5_IRQn 0 */
-//  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_6);
-//  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_7);
-//  /* USER CODE BEGIN EXTI9_5_IRQn 1 */
-//
-//  #endif
-//
-//  /* USER CODE END EXTI9_5_IRQn 1 */
-//}
-
-/**
 * @brief This function handles USB On The Go FS global interrupt.
 */
 void OTG_FS_IRQHandler(void)

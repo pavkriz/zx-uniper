@@ -73,7 +73,7 @@ static void MX_SDMMC1_SD_Init(void);
 
 /* USER CODE END 0 */
 
-int __attribute__((section(".fast_code"))) main(void)
+int main(void)
 {
 
   /* USER CODE BEGIN 1 */
@@ -93,8 +93,6 @@ int __attribute__((section(".fast_code"))) main(void)
   MX_USB_DEVICE_Init();
   //MX_UART4_Init();
   //MX_SDMMC1_SD_Init();
-
-  volatile uint32_t x = FPU->FPCCR;
 
   /* USER CODE BEGIN 2 */
 
@@ -171,7 +169,6 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
-  //if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_14) != HAL_OK)
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK)
   {
     Error_Handler();
@@ -259,8 +256,8 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pins : ZX_A2_Pin ZX_A3_Pin ZX_A4_Pin ZX_A5_Pin 
                            ZX_A6_Pin ZX_A7_Pin ZX_A8_Pin ZX_A9_Pin 
@@ -318,7 +315,6 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-
 
 }
 

@@ -62,9 +62,9 @@ void HAL_MspInit(void)
   /* DebugMonitor_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DebugMonitor_IRQn, 0, 0);
   /* PendSV_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(PendSV_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(PendSV_IRQn, 1, 0);
   /* SysTick_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);
 
   /* USER CODE BEGIN MspInit 1 */
 

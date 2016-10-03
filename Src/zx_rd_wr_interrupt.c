@@ -513,11 +513,5 @@ void zx_init_pins(void) {
 	HAL_Delay(4000);
 
 
-
-	//__disable_irq();
-	//HAL_NVIC_DisableIRQ(SysTick_IRQn);
-	SysTick->CTRL = 0;    //Disable Systick
-
-
 	DEASSERT_ZX_RESET();
 }
