@@ -34,6 +34,7 @@
 #include "usbd_cdc_if.h"
 /* USER CODE BEGIN INCLUDE */
 #include <stdarg.h>
+#include "zx_rd_wr_interrupt.h"
 
 /* USER CODE END INCLUDE */
 
@@ -61,8 +62,8 @@
 /* USER CODE BEGIN PRIVATE_DEFINES */
 /* Define size for the receive and transmit buffer over CDC */
 /* It's up to user to redefine and/or remove those define */
-#define APP_RX_DATA_SIZE  4
-#define APP_TX_DATA_SIZE  4
+#define APP_RX_DATA_SIZE  512
+#define APP_TX_DATA_SIZE  512
 /* USER CODE END PRIVATE_DEFINES */
 /**
   * @}
@@ -171,6 +172,7 @@ static int8_t CDC_DeInit_FS(void)
 static int8_t CDC_Control_FS  (uint8_t cmd, uint8_t* pbuf, uint16_t length)
 { 
   /* USER CODE BEGIN 5 */
+
   switch (cmd)
   {
   case CDC_SEND_ENCAPSULATED_COMMAND:
@@ -252,8 +254,24 @@ static int8_t CDC_Control_FS  (uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS (uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
+
+	ide_bytes_received_total += *Len;
+
+  // copy received bytes to ide buffer
+  for (int i = 0; i < *Len; i++) {
+	  if (ide_bytes_received+i < 512) {
+		  ide_drive_buffer[ide_bytes_received+i] = Buf[i];
+	  }
+  }
+  ide_bytes_received += *Len;
+  if (ide_bytes_received >= 512) {
+	  divide_command_status = DIVIDE_COMMAND_DATA_READY;
+      ide_drive_buffer_pointer = 0;
+  }
+
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+
   return (USBD_OK);
   /* USER CODE END 6 */ 
 }

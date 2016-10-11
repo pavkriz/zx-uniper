@@ -52,17 +52,18 @@
 ENTRY(Reset_Handler)
 
 /* Highest address of the user mode stack */
-/*_estack = 0x20080000;  */  /* end of RAM */
-_estack = 0x20020000; /* end of DTCM */
+_estack = 0x20080000;    /* end of RAM */
+/* _estack = 0x20020000; */ /* end of DTCM */
 /* Generate a link error if heap and stack don't fit into RAM */
-_Min_Heap_Size = 0x200;      /* required amount of heap  */
+_Min_Heap_Size = 0xf00;      /* required amount of heap  */
 _Min_Stack_Size = 0x400; /* required amount of stack */
 
 /* Specify the memory areas */
 MEMORY
 {
 FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 2048K
-RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 128K
+/* RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 128K */
+RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 512K
 ITCM_RAM (xrw)	: ORIGIN = 0x00000000, LENGTH = 16K
 }
 
