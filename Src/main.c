@@ -93,6 +93,7 @@ void __attribute__((section(".fast_code"))) EXTI9_5_IRQHandler(void) {
 
 #define UART_LEN 1
 uint8_t UART_Rx_data[UART_LEN];
+volatile int rx_timeouts = 0;
 
 //
 ////Interrupt callback routine
@@ -174,10 +175,12 @@ int main(void)
 //	  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
 //	  HAL_Delay(100);
 
-	  HAL_Delay(1);
+	  //HAL_Delay(1);
 
-	  if (divide_command != 0 && divide_command_status == DIVIDE_COMMAND_ISSUED) {
+	  //__disable_irq();
+	  if (divide_command_status == DIVIDE_COMMAND_ISSUED) {
 		  divide_command_status = DIVIDE_COMMAND_IN_PROGRESS;
+		  //__enable_irq();
 		  //USB_printf("command: 0x%x LBA addr: %d'%d'%d'%d\r\n", divide_command, divide_lba_0, divide_lba_1, divide_lba_2, divide_lba_3);
 		  ide_bytes_received = 0;
 		  p = 0;
@@ -193,33 +196,41 @@ int main(void)
 		  //CDC_Transmit_FS(host_command_buffer, p);
 		  //divide_command_status = DIVIDE_COMMAND_DATA_READY;
 		  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // 500ms timeout
+		  ide_drive_buffer_pointer = 0;
+	  } else {
+		  //__enable_irq();
 	  }
 
-	  // send "alive" event
-	  p = 0;
-	  host_command_buffer[p++] = 0;
-	  host_command_buffer[p++] = 1; // alive event
-	  host_command_buffer[p++] = 0; // length of request payload
-	  host_command_buffer[p++] = 0;
-	  //usb_result = CDC_Transmit_FS(host_command_buffer, p);
-	  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // ms timeout
+	  if (divide_command_status != DIVIDE_COMMAND_IN_PROGRESS) {
 
-	  while (HAL_UART_Receive(&huart2, UART_Rx_data, UART_LEN, 100) == HAL_OK) { // ms timeout
-		  ide_bytes_received_total += UART_LEN;
+		  // send "alive" event
+		  p = 0;
+		  host_command_buffer[p++] = 0;
+		  host_command_buffer[p++] = 1; // alive event
+		  host_command_buffer[p++] = 0; // length of request payload
+		  host_command_buffer[p++] = 0;
+		  //usb_result = CDC_Transmit_FS(host_command_buffer, p);
+		  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // ms timeout
+	  } else {
+		  while ((divide_command_status == DIVIDE_COMMAND_IN_PROGRESS) && (HAL_UART_Receive(&huart2, UART_Rx_data, UART_LEN, 10) == HAL_OK)) { // ms timeout
+			  ide_bytes_received_total += UART_LEN;
 
-			// copy byte to ide buffer
-			for (int i = 0; i < UART_LEN; i++) {
-				if (ide_bytes_received+i < 512) {
-					ide_drive_buffer[ide_bytes_received+i] = UART_Rx_data[i];
+				// copy byte to ide buffer
+				for (int i = 0; i < UART_LEN; i++) {
+					if (ide_bytes_received+i < 512) {
+						ide_drive_buffer[ide_bytes_received+i] = UART_Rx_data[i];
+					}
 				}
-			}
-			// DI?
-			ide_bytes_received += UART_LEN;
-			if (ide_bytes_received >= 512) {
-				divide_command_status = DIVIDE_COMMAND_DATA_READY;
-				ide_drive_buffer_pointer = 0;
-			}
-			// EI?
+				// DI?
+				//__disable_irq();
+				ide_bytes_received += UART_LEN;
+				if (ide_bytes_received >= 512) {
+					divide_command_status = DIVIDE_COMMAND_DATA_READY;
+				}
+				 //__enable_irq();
+				// EI?
+		  }
+		  if (divide_command_status == DIVIDE_COMMAND_IN_PROGRESS) rx_timeouts++;
 	  }
 
   /* USER CODE END WHILE */
@@ -254,7 +265,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
   //RCC_OscInitStruct.PLL.PLLN = 216;
-  RCC_OscInitStruct.PLL.PLLN = 230;
+  RCC_OscInitStruct.PLL.PLLN = 250;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 9;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)

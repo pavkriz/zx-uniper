@@ -254,20 +254,20 @@ static int8_t CDC_Control_FS  (uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS (uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
-
-	ide_bytes_received_total += *Len;
-
-  // copy received bytes to ide buffer
-  for (int i = 0; i < *Len; i++) {
-	  if (ide_bytes_received+i < 512) {
-		  ide_drive_buffer[ide_bytes_received+i] = Buf[i];
-	  }
-  }
-  ide_bytes_received += *Len;
-  if (ide_bytes_received >= 512) {
-	  divide_command_status = DIVIDE_COMMAND_DATA_READY;
-      ide_drive_buffer_pointer = 0;
-  }
+//
+//	ide_bytes_received_total += *Len;
+//
+//  // copy received bytes to ide buffer
+//  for (int i = 0; i < *Len; i++) {
+//	  if (ide_bytes_received+i < 512) {
+//		  ide_drive_buffer[ide_bytes_received+i] = Buf[i];
+//	  }
+//  }
+//  ide_bytes_received += *Len;
+//  if (ide_bytes_received >= 512) {
+//	  divide_command_status = DIVIDE_COMMAND_DATA_READY;
+//      ide_drive_buffer_pointer = 0;
+//  }
 
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);

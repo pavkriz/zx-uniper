@@ -219,7 +219,7 @@ class PcTool {
                     while (comPort.bytesAvailable() <= 0) {
                         Thread.sleep(1);
                         missedAlives++;
-                        if (missedAlives > 1000) throw new MissingAlives();
+                        if (missedAlives > 2000) throw new MissingAlives();
                     }
 
                     if (comPort.bytesAvailable() > 0) {
