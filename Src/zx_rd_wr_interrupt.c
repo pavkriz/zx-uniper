@@ -278,9 +278,12 @@ void copy_roms_to_ram() {
 	zx_io_wr_service_table[0x0bf] = divide_command_register_wr;
 	// 128k mapovani?
 	zx_io_wr_service_table[0x0fd] = zx_noop; // ignore writes
+	zx_io_rd_service_table[0x0fd] = zx_noop; // ignore reads
 	// nejaka mys?
 	zx_io_wr_service_table[0x07f] = zx_noop; // ignore writes
-
+	// kempston joystick
+	zx_io_rd_service_table[0x01f] = zx_noop;
+	zx_io_wr_service_table[0x01f] = zx_noop;
 }
 
 void  __attribute__((section(".fast_code"))) zx_mem_rd_nonm1() {
