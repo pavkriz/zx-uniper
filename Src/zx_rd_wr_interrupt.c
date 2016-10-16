@@ -8,7 +8,7 @@
 #include <raiders_rom.h>
 #include <zxtest_rom.h>
 #include <esxdos080_rom.h>
-#include <didaktik_gama_88_rom.h>
+#include <didaktik_gama_89_mod_rom.h>
 #include <fatware014_rom.h>
 #include "zx_rd_wr_interrupt.h"
 #include "stm32f7xx_hal_conf.h"
@@ -20,6 +20,7 @@ int volatile divide_lba_0 = 0;
 int volatile divide_lba_1 = 0;
 int volatile divide_lba_2 = 0;
 int volatile divide_lba_3 = 0;
+volatile int divide_sector_count = 1;
 
 #define IDE_STATUS_ERR 0x01
 #define IDE_STATUS_DRQ 0x08
@@ -44,6 +45,7 @@ int volatile divide_lba_3 = 0;
 #define CLEAR_ZX_CONTROL_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_RD_Pin);__HAL_GPIO_EXTI_CLEAR_IT(ZX_WR_Pin);}
 #define HANG_LOOP() {HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET); while (1) {}}
 
+#define DIVIDE_EEPROM_WRITABLE 1
 
 zx_control_handler_t zx_io_rd_service_table[256];
 zx_control_handler_t zx_io_wr_service_table[256];
@@ -58,6 +60,9 @@ uint8_t device_ram[16384*4];
 //uint8_t device_ram[512];
 uint8_t divide_mapped = 0;
 uint8_t divide_page = 0;
+uint8_t divide_conmem = 0;
+uint8_t divide_mapram = 0;
+int divide_eeprom_addr = 3*0x4000; // Divide ROM at startup
 volatile int last_m1_addr = 0;
 volatile int last_io_op = 0;
 volatile int dummy = 0;
@@ -67,6 +72,8 @@ uint8_t ide_operation = 0;
 uint8_t ide_data_ready = 0;
 volatile int ide_drive_buffer_pointer = 0;
 uint8_t ide_drive_buffer_endian_pointer = 1;
+int divide_lowbank_writable = DIVIDE_EEPROM_WRITABLE;
+int divide_highbank_writable = 1;
 
 volatile uint8_t ide_drive_buffer[512];
 volatile int ide_bytes_received = 0;
@@ -78,15 +85,17 @@ volatile int last_port_op = 0;
 //int divide_automap = 0;
 
 void __attribute__((section(".fast_code"))) __STATIC_INLINE divide_set_automap_on() {
-	low_8k_rom_offset = 3*0x4000; // Divide ROM
+	low_8k_rom_offset = divide_eeprom_addr; // Divide ROM or Divide Bank 3 RAM
 	high_8k_rom_offset = divide_page*0x2000; // Divide RAM page (8kB) 0..3
 	divide_mapped = 1;
 }
 
 void __attribute__((section(".fast_code"))) __STATIC_INLINE divide_set_automap_off() {
-	low_8k_rom_offset = 2*0x4000; // ZX ROM copy (low 8kB)
-	high_8k_rom_offset = 2*0x4000 + 0x2000; // ZX ROM copy (high 8kB)
-	divide_mapped = 0;
+	if (!divide_conmem) { // do not unmap when conmem == true
+		low_8k_rom_offset = 2*0x4000; // ZX ROM copy (low 8kB)
+		high_8k_rom_offset = 2*0x4000 + 0x2000; // ZX ROM copy (high 8kB)
+		divide_mapped = 0;
+	}
 }
 
 void  __attribute__((section(".fast_code"))) zx_noop() {
@@ -143,17 +152,34 @@ void  __attribute__((section(".fast_code"))) divide_control_register_wr() {
 	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
 	last_port_data = data;
 	divide_page = data & 0b11;
-	if (divide_mapped) {
+	divide_conmem = data & 0x10000000; // CONMEM bit
+	if (divide_conmem) {
+		divide_eeprom_addr = 3*0x4000; // Divide ROM
+		divide_lowbank_writable = DIVIDE_EEPROM_WRITABLE;
+		divide_highbank_writable = 1; // Divide RAM writable
+	} else {
+		if (divide_mapram || (data & 0b01000000)) { // MAPRAM
+			divide_mapram = 1;
+			divide_eeprom_addr = 3*0x2000; // Divide RAM bank 3 (8kB)
+			divide_lowbank_writable = 0;
+			divide_highbank_writable = (divide_page != 3); // Divide RAM writable only when not bank 3
+		} else {
+			divide_eeprom_addr = 3*0x4000; // Divide ROM
+			divide_lowbank_writable = DIVIDE_EEPROM_WRITABLE;
+			divide_highbank_writable = 1; // Divide RAM writable
+		}
+	}
+	if (divide_mapped || divide_conmem) {
 		divide_set_automap_on(); // recalculate offsets for a new RAM page
+	} else {
+		divide_set_automap_off(); // unmap divide memory (in case divide_conmem has been turned off)
 	}
 	CLEAR_ZX_CONTROL_EXTI();
 }
 
 void  __attribute__((section(".fast_code"))) divide_sector_count_register_wr() {
 	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
-	if (data != 1) {
-		HANG_LOOP();
-	}
+	divide_sector_count = data;
 	CLEAR_ZX_CONTROL_EXTI();
 }
 
@@ -243,7 +269,7 @@ void copy_roms_to_ram() {
 	// BANK 0
 	// BANK 1
 	// BANK 2
-	for (i = 0; i < sizeof(didaktik_gama_88_rom) && i < 16384; i++) device_ram[i+2*16384] = didaktik_gama_88_rom[i];
+	for (i = 0; i < sizeof(didaktik_gama_89_mod_rom) && i < 16384; i++) device_ram[i+2*16384] = didaktik_gama_89_mod_rom[i];
 	// BANK 3
 	for (i = 0; i < sizeof(esxdos080_rom) && i < 16384; i++) device_ram[i+3*16384] = esxdos080_rom[i];
 	//for (i = 0; i < sizeof(fatware014_rom) && i < 16384; i++) device_ram[i+3*16384] = fatware014_rom[i];
@@ -253,10 +279,10 @@ void copy_roms_to_ram() {
 	// by default, do not handle IO operations on any port
 	for (i = 0; i < 256; i++) zx_io_rd_service_table[i] = zx_noop;
 	for (i = 0; i < 256; i++) zx_io_wr_service_table[i] = zx_noop;
-	// register non-ULA ports to hangloop
+	// register non-ULA ports to noop
 	for (i = 1; i < 256; i+=2) {
-		zx_io_wr_service_table[i] = io_wr_hang_loop;
-		zx_io_rd_service_table[i] = io_rd_hang_loop;
+		zx_io_wr_service_table[i] = zx_noop;
+		zx_io_rd_service_table[i] = zx_noop;
 	}
 	// register particular port handlers
 	zx_io_wr_service_table[0x0e3] = divide_control_register_wr;
@@ -341,10 +367,12 @@ void  __attribute__((section(".fast_code"))) zx_mem_rd_m1() {
 void  __attribute__((section(".fast_code"))) zx_mem_wr() {
 	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
 	register uint8_t data = ZX_DATA_GPIO_PORT->IDR;
-	if (address < 0x2000) { // low 8kB of ROM area
-		device_ram[low_8k_rom_offset + address] = data;
-	} else if (address < 0x4000) { // high 8kB of ROM area
-		device_ram[high_8k_rom_offset + address - 0x2000] = data;
+	if (divide_mapped) { // ignore writes to ROM when Divide not mapped
+		if ((address < 0x2000) && divide_lowbank_writable) { // low 8kB of ROM area
+			device_ram[low_8k_rom_offset + address] = data;
+		} else if ((address < 0x4000) && divide_highbank_writable) { // high 8kB of ROM area
+			device_ram[high_8k_rom_offset + address - 0x2000] = data;
+		}
 	}
 	CLEAR_ZX_CONTROL_EXTI();
 }

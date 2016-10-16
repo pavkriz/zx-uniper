@@ -163,8 +163,11 @@ class PcTool {
         } else if (Byte.toUnsignedInt(payload[0]) == 0x20) {
             // ATA READ BLOCK
             int lbaBlock = Byte.toUnsignedInt(payload[1]) + Byte.toUnsignedInt(payload[2])*256 + Byte.toUnsignedInt(payload[3])*256*256 + (Byte.toUnsignedInt(payload[4]) & 0x0f)*256*256*256;
-            println "ATA READ BLOCK CMD LBA=" + lbaBlock;
-            sendBytesBlock(hdfImage, 0x216 + lbaBlock*512, 512);
+            int sectorCount = Byte.toUnsignedInt(payload[5]);
+            println "ATA READ BLOCK CMD LBA=" + lbaBlock + " SECTOR_COUNT=" + sectorCount;
+            for (int i = 0; i < sectorCount; i++) {
+                sendBytesBlock(hdfImage, 0x216 + (lbaBlock + i) * 512, 512);
+            }
         }
     }
 
@@ -239,6 +242,7 @@ class PcTool {
                 println "Missing alives, port has been probably lost, trying to reconnect";
                 commandBufferLen = 0; // empty buffer
             } catch (Exception e) {
+                commandBufferLen = 0; // empty buffer
                 e.printStackTrace();
             }
             comPort.closePort();

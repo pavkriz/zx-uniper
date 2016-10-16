@@ -186,12 +186,13 @@ int main(void)
 		  p = 0;
 		  host_command_buffer[p++] = 0;
 		  host_command_buffer[p++] = 3; // IDE device emulation
-		  host_command_buffer[p++] = 5; // length of request payload
+		  host_command_buffer[p++] = 6; // length of request payload
 		  host_command_buffer[p++] = divide_command;
 		  host_command_buffer[p++] = divide_lba_0;
 		  host_command_buffer[p++] = divide_lba_1;
 		  host_command_buffer[p++] = divide_lba_2;
 		  host_command_buffer[p++] = divide_lba_3;
+		  host_command_buffer[p++] = divide_sector_count;
 		  host_command_buffer[p++] = 0;
 		  //CDC_Transmit_FS(host_command_buffer, p);
 		  //divide_command_status = DIVIDE_COMMAND_DATA_READY;

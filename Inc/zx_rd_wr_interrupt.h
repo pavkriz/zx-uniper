@@ -32,6 +32,7 @@ extern volatile int divide_lba_0;
 extern volatile int divide_lba_1;
 extern volatile int divide_lba_2;
 extern volatile int divide_lba_3;
+extern volatile int divide_sector_count;
 
 extern volatile uint8_t ide_drive_buffer[512];
 extern volatile int ide_bytes_received;
