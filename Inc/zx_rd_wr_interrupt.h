@@ -27,6 +27,8 @@ extern volatile int divide_command_status;
 #define DIVIDE_COMMAND_IN_PROGRESS 3
 #define DIVIDE_COMMAND_DATA_READY 4
 #define DIVIDE_COMMAND_DATA_FETCHED 5
+#define DIVIDE_COMMAND_WRITE_FILLING_BUFFER 6
+#define DIVIDE_COMMAND_WRITE_BUFFER_FILLED 7
 
 extern volatile int divide_lba_0;
 extern volatile int divide_lba_1;
@@ -43,5 +45,6 @@ typedef void (*zx_control_handler_t)(void);
 
 extern zx_control_handler_t exti_service_table[64];
 
+#define CLEAR_ZX_CONTROL_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_RD_Pin);__HAL_GPIO_EXTI_CLEAR_IT(ZX_WR_Pin);}
 
 #endif /* ZX_RD_WR_INTERRUPT_H_X_ */

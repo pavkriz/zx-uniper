@@ -15,7 +15,7 @@ Currently supported hardware and the way it's emulated is rather proof-of-concep
   * currently in form of C array in a header (use bin2h) compiled into to the firmware
 * Divide interface
   * currently only read-only support, only 1 sector transfer currently supported
-  * emulates IDE drive via STM32's UART2 connected to PC, where companion PC app pc-tool.groovy reads particular HDF disk image
+  * emulates IDE drive via USB Host Mass Storage (flash drive)
 
 ## Architecture
 

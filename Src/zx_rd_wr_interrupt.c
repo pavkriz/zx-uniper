@@ -7,7 +7,7 @@
 
 #include <raiders_rom.h>
 #include <zxtest_rom.h>
-#include <esxdos080_rom.h>
+#include <esxide085_rom.h>
 #include <didaktik_gama_89_mod_rom.h>
 #include <fatware014_rom.h>
 #include "zx_rd_wr_interrupt.h"
@@ -36,13 +36,12 @@ volatile int divide_sector_count = 1;
 #define DEASSERT_ZX_ROMCS() {ZX_ROMCS_GPIO_Port->BSRR = ZX_ROMCS_Pin;}
 #define ASSERT_ZX_ROMCS() {ZX_ROMCS_GPIO_Port->BSRR = (uint32_t)ZX_ROMCS_Pin << 16;}
 
-#define ZX_DATA_OUT(data) {ZX_DATA_GPIO_PORT->BSRR = (uint32_t)0xff << 16; ZX_DATA_GPIO_PORT->MODER = (uint32_t)0b0101010101010101;  ZX_DATA_GPIO_PORT->BSRR = data;  } // ala UNICARD, ale MODER natvrdo misto |=, MODER doprostred
-#define ZX_DATA_HI_Z() {ZX_DATA_GPIO_PORT->MODER = 0;}
+#define ZX_DATA_OUT(data) {ZX_DATA_GPIO_PORT->BSRR = (uint32_t)0xff << 16; ZX_DATA_GPIO_PORT->MODER = (uint32_t)0b10100000000000000101010101010101;  ZX_DATA_GPIO_PORT->BSRR = data;  } // ala UNICARD, ale MODER natvrdo misto |=, MODER doprostred
+#define ZX_DATA_HI_Z() {ZX_DATA_GPIO_PORT->MODER = (uint32_t)0b10100000000000000000000000000000;}
 
 #define ZX_IS_MEM_READ(control_lines) (((uint16_t)control_lines & (ZX_RD_Pin | ZX_MEMREQ_Pin)) == 0)
 #define ZX_IS_IO_READ(control_lines) (((uint16_t)control_lines & (ZX_RD_Pin | ZX_IOREQ_Pin)) == 0)
 
-#define CLEAR_ZX_CONTROL_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_RD_Pin);__HAL_GPIO_EXTI_CLEAR_IT(ZX_WR_Pin);}
 #define HANG_LOOP() {HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET); while (1) {}}
 
 #define DIVIDE_EEPROM_WRITABLE 1
@@ -84,6 +83,24 @@ volatile int last_port_op = 0;
 
 //int divide_automap = 0;
 
+void __attribute__((section(".fast_code"))) EXTI4_IRQHandler(void) {
+
+	// read control lines (pins ZX_MEMREQ, ZX_IOREQ, ZX_WR, ZX_RD, ZX_M1)
+	register uint32_t control = ZX_CONTROL_IN_GPIO_PORT->IDR & 0b111111;
+
+	exti_service_table[control]();
+	//CLEAR_ZX_CONTROL_EXTI();
+}
+
+void __attribute__((section(".fast_code"))) EXTI9_5_IRQHandler(void) {
+
+	// read control lines (pins ZX_MEMREQ, ZX_IOREQ, ZX_WR, ZX_RD, ZX_M1)
+	register uint32_t control = ZX_CONTROL_IN_GPIO_PORT->IDR & 0b111111;
+
+	exti_service_table[control]();
+	//CLEAR_ZX_CONTROL_EXTI();
+}
+
 void __attribute__((section(".fast_code"))) __STATIC_INLINE divide_set_automap_on() {
 	low_8k_rom_offset = divide_eeprom_addr; // Divide ROM or Divide Bank 3 RAM
 	high_8k_rom_offset = divide_page*0x2000; // Divide RAM page (8kB) 0..3
@@ -119,21 +136,6 @@ void  __attribute__((section(".fast_code"))) io_rd_hang_loop() {
 }
 
 void  __attribute__((section(".fast_code"))) divide_data_register_rd() {
-//	if (ide_drive_buffer_word_pointer < 256) {
-//		// return in order lowbyte, highbyte
-//		if (ide_drive_buffer_endian_pointer) {
-//			// now return low byte
-//			ZX_DATA_OUT(ide_drive_itentify_buffer[ide_drive_buffer_word_pointer*2+1]);
-//			ide_drive_buffer_endian_pointer = 0;
-//		} else {
-//			// now return high byte and move pointer to next word
-//			ZX_DATA_OUT(ide_drive_itentify_buffer[ide_drive_buffer_word_pointer*2]);
-//			ide_drive_buffer_word_pointer++;
-//			ide_drive_buffer_endian_pointer = 1;
-//		}
-//	} else {
-//		ZX_DATA_OUT(0);
-//	}
 	if (ide_drive_buffer_pointer < 512) {
 		ZX_DATA_OUT(ide_drive_buffer[ide_drive_buffer_pointer++]);
 	} else {
@@ -144,6 +146,18 @@ void  __attribute__((section(".fast_code"))) divide_data_register_rd() {
 	if (ide_drive_buffer_pointer == 512) {
 		divide_command_status = DIVIDE_COMMAND_DEVICE_READY;
 		ide_data_ready = 0;
+	}
+	CLEAR_ZX_CONTROL_EXTI();
+}
+
+// TODO work-in-progress
+void  __attribute__((section(".fast_code"))) divide_data_register_wr() {
+	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
+	if (ide_drive_buffer_pointer < 512) {
+		ide_drive_buffer[ide_drive_buffer_pointer++] = data;
+	}
+	if (ide_drive_buffer_pointer == 512) {
+		divide_command_status = DIVIDE_COMMAND_WRITE_BUFFER_FILLED;
 	}
 	CLEAR_ZX_CONTROL_EXTI();
 }
@@ -199,7 +213,7 @@ void  __attribute__((section(".fast_code"))) divide_drive_head_register_rd() {
 void  __attribute__((section(".fast_code"))) divide_status_register_rd() {
 	if (divide_command_status == DIVIDE_COMMAND_DATA_READY) {
 		ZX_DATA_OUT(IDE_STATUS_DRDY | IDE_STATUS_DRQ); // data ready (and device ready?)
-	} else if (divide_command_status == DIVIDE_COMMAND_ISSUED || divide_command_status == DIVIDE_COMMAND_IN_PROGRESS) {
+	} else if ((divide_command_status == DIVIDE_COMMAND_ISSUED) || (divide_command_status == DIVIDE_COMMAND_IN_PROGRESS) || (divide_command_status == DIVIDE_COMMAND_WRITE_BUFFER_FILLED)) {
 		ZX_DATA_OUT(IDE_STATUS_DRDY | IDE_STATUS_BSY); // Controller is busy executing a command.
 	} else {
 		ZX_DATA_OUT(IDE_STATUS_DRDY); // device ready
@@ -216,10 +230,12 @@ void  __attribute__((section(".fast_code"))) divide_error_register_rd() {
 	CLEAR_ZX_CONTROL_EXTI();
 }
 
+// TODO work-in-progress
 void  __attribute__((section(".fast_code"))) divide_command_register_wr() {
 	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
-	divide_command_status = DIVIDE_COMMAND_ISSUED;
 	divide_command = data;
+	ide_drive_buffer_pointer = 0;
+	divide_command_status = DIVIDE_COMMAND_ISSUED;
 	CLEAR_ZX_CONTROL_EXTI();
 }
 
@@ -271,7 +287,7 @@ void copy_roms_to_ram() {
 	// BANK 2
 	for (i = 0; i < sizeof(didaktik_gama_89_mod_rom) && i < 16384; i++) device_ram[i+2*16384] = didaktik_gama_89_mod_rom[i];
 	// BANK 3
-	for (i = 0; i < sizeof(esxdos080_rom) && i < 16384; i++) device_ram[i+3*16384] = esxdos080_rom[i];
+	for (i = 0; i < sizeof(esxide085_rom) && i < 16384; i++) device_ram[i+3*16384] = esxide085_rom[i];
 	//for (i = 0; i < sizeof(fatware014_rom) && i < 16384; i++) device_ram[i+3*16384] = fatware014_rom[i];
 	//for (i = 0; i < sizeof(raiders_rom) && i < 16384; i++) device_ram[i] = raiders_rom[i];
 	//for (i = 0; i < sizeof(zxtest_rom) && i < 16384; i++) device_ram[i+16384] = zxtest_rom[i];
@@ -287,7 +303,7 @@ void copy_roms_to_ram() {
 	// register particular port handlers
 	zx_io_wr_service_table[0x0e3] = divide_control_register_wr;
 	zx_io_rd_service_table[0x0a3] = divide_data_register_rd;
-	zx_io_wr_service_table[0x0a3] = io_wr_hang_loop;
+	zx_io_wr_service_table[0x0a3] = divide_data_register_wr;
 	zx_io_rd_service_table[0x0a7] = divide_error_register_rd;
 	zx_io_wr_service_table[0x0a7] = io_wr_hang_loop;
 	zx_io_rd_service_table[0x0ab] = io_rd_hang_loop;
@@ -533,7 +549,7 @@ void zx_init_pins(void) {
 	ASSERT_ZX_RESET();
 
 
-	HAL_Delay(4000);
+	HAL_Delay(500);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
@@ -542,7 +558,7 @@ void zx_init_pins(void) {
   HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
-	HAL_Delay(4000);
+	HAL_Delay(500);
 
 
 	DEASSERT_ZX_RESET();
