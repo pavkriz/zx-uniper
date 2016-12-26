@@ -10,9 +10,6 @@
 
 #include <stdint.h>
 
-#define ZX_ADDR_GPIO_PORT GPIOE
-#define ZX_DATA_GPIO_PORT GPIOB
-#define ZX_CONTROL_IN_GPIO_PORT GPIOD
 
 void zx_init_pins(void);
 void zx_rd_wr_handler(void);
@@ -43,8 +40,7 @@ extern volatile int ide_drive_buffer_pointer;
 
 typedef void (*zx_control_handler_t)(void);
 
-extern zx_control_handler_t exti_service_table[64];
-
-#define CLEAR_ZX_CONTROL_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_RD_Pin);__HAL_GPIO_EXTI_CLEAR_IT(ZX_WR_Pin);}
+void register_zx_port_write(uint8_t port, zx_control_handler_t handler);
+void register_zx_port_read(uint8_t port, zx_control_handler_t handler);
 
 #endif /* ZX_RD_WR_INTERRUPT_H_X_ */
