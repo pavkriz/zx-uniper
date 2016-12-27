@@ -101,6 +101,8 @@ SECTIONS
   {
     . = ALIGN(4);
     _sdata = .;        /* create a global symbol at data start */
+    *(.begin_data1)           /* .begin_data1 sections */
+    *(.begin_data2)           /* .begin_data1 sections */
     *(.data)           /* .data sections */
     *(.data*)          /* .data* sections */
 

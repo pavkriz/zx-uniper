@@ -224,6 +224,13 @@ int main(void)
   // wait for USB disk while flashing LED
   while (!usb_disk_found) {
 	  HAL_Delay(100);
+	  	  	  p = 0;
+	  		  host_command_buffer[p++] = 'A';
+	  		  host_command_buffer[p++] = '0' + GetUsbHostAppliState();
+	  		  host_command_buffer[p++] = 13;
+	  		  host_command_buffer[p++] = 10;
+
+	  		  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // ms timeout
 	  if (GetUsbHostAppliState() == APPLICATION_READY) {
 		  usb_disk_found = 1;
 	  } else {
@@ -388,7 +395,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
   //RCC_OscInitStruct.PLL.PLLN = 216;
-  RCC_OscInitStruct.PLL.PLLN = 260;
+  RCC_OscInitStruct.PLL.PLLN = 250;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 9;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)

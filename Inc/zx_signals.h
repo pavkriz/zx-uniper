@@ -26,7 +26,6 @@
 
 // must be called at the end of EVERY operation called from RD/WR interrupt
 #define CLEAR_ZX_CONTROL_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_RD_Pin);__HAL_GPIO_EXTI_CLEAR_IT(ZX_WR_Pin);}
-#define RETURN_FROM_NAKED_ISR() { __asm__ __volatile__ ("bx lr"); }
 
 
 #endif /* ZX_SIGNALS_H_ */
