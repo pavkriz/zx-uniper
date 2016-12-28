@@ -223,14 +223,14 @@ int main(void)
   int led_status = 0;
   // wait for USB disk while flashing LED
   while (!usb_disk_found) {
-	  HAL_Delay(100);
-	  	  	  p = 0;
-	  		  host_command_buffer[p++] = 'A';
-	  		  host_command_buffer[p++] = '0' + GetUsbHostAppliState();
-	  		  host_command_buffer[p++] = 13;
-	  		  host_command_buffer[p++] = 10;
-
-	  		  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // ms timeout
+	  HAL_Delay(5);
+//	  	  	  p = 0;
+//	  		  host_command_buffer[p++] = 'A';
+//	  		  host_command_buffer[p++] = '0' + GetUsbHostAppliState();
+//	  		  host_command_buffer[p++] = 13;
+//	  		  host_command_buffer[p++] = 10;
+//
+//	  		  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // ms timeout
 	  if (GetUsbHostAppliState() == APPLICATION_READY) {
 		  usb_disk_found = 1;
 	  } else {
