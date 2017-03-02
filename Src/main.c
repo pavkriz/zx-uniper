@@ -43,6 +43,7 @@
 #include <stdarg.h>
 #include "usb_host.h"
 #include "usbh_msc.h"
+#include "emu_divide_ports.h"
 
 
 /* USER CODE END Includes */
@@ -313,7 +314,7 @@ int main(void)
 	  if (divide_command_status == DIVIDE_COMMAND_ISSUED) {
 		  if (GetUsbHostAppliState() == APPLICATION_READY) {
 	  		  divide_command_status = DIVIDE_COMMAND_IN_PROGRESS;
-	  		  ide_bytes_received = 0;
+	  		  //ide_bytes_received = 0;
 	  		  p = 0;
 	  		  if (divide_sector_count > 1) {
 	  			HANG_LOOP();
@@ -627,9 +628,13 @@ int main_UART2_IDE_emu(void)
 
   //op_sniff_loop();
 
+  int ide_bytes_received_total = 0;
+
   uint8_t host_command_buffer[20];
 
   int p;
+
+  int ide_bytes_received = 0;
 
   while (1)
   {

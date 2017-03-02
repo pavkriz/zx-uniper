@@ -7,22 +7,12 @@
 
 #include "zx_signals.h"
 #include "emu_memory.h"
+#include "emu_divide_ports.h"
 #include "zx_rd_wr_interrupt.h"
 #include "stm32f7xx_hal_conf.h"
 #include "stm32f7xx_hal.h"
+#include "utils.h"
 
-int volatile divide_command = 0;
-int volatile divide_command_status = DIVIDE_COMMAND_DEVICE_READY;
-int volatile divide_lba_0 = 0;
-int volatile divide_lba_1 = 0;
-int volatile divide_lba_2 = 0;
-int volatile divide_lba_3 = 0;
-volatile int divide_sector_count = 1;
-
-#define IDE_STATUS_ERR 0x01
-#define IDE_STATUS_DRQ 0x08
-#define IDE_STATUS_DRDY 0x40
-#define IDE_STATUS_BSY 0x80
 
 #define DEASSERT_ZX_WAIT() {ZX_WAIT_GPIO_Port->BSRR = ZX_WAIT_Pin;}
 #define ASSERT_ZX_WAIT() {ZX_WAIT_GPIO_Port->BSRR = (uint32_t)ZX_WAIT_Pin << 16;}
@@ -42,24 +32,16 @@ volatile int last_m1_addr = 0;
 volatile int last_io_op = 0;
 volatile int dummy = 0;
 uint8_t ide_operation = 0;
-uint8_t ide_data_ready = 0;
-volatile int ide_drive_buffer_pointer = 0;
-uint8_t ide_drive_buffer_endian_pointer = 1;
 
-volatile uint8_t ide_drive_buffer[512];
-volatile int ide_bytes_received = 0;
-volatile int ide_bytes_received_total = 0;
 volatile int last_port_addr = 0;
 volatile int last_port_data = 0;
 volatile int last_port_op = 0;
 
-//int divide_automap = 0;
-
-void  __attribute__((section(".fast_code"))) zx_noop() {
+void FAST_CODE zx_noop() {
 	CLEAR_ZX_CONTROL_EXTI();
 }
 
-void  __attribute__((section(".fast_code"))) io_wr_hang_loop() {
+void FAST_CODE io_wr_hang_loop() {
 	last_io_op = 2;
 	volatile int addr = ZX_ADDR_GPIO_PORT->IDR & 0xff;
 	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
@@ -67,129 +49,13 @@ void  __attribute__((section(".fast_code"))) io_wr_hang_loop() {
 	CLEAR_ZX_CONTROL_EXTI();
 }
 
-void  __attribute__((section(".fast_code"))) io_rd_hang_loop() {
+void FAST_CODE io_rd_hang_loop() {
 	last_io_op = 1;
 	volatile int addr = ZX_ADDR_GPIO_PORT->IDR & 0xff;
 	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
 	HANG_LOOP();
 	CLEAR_ZX_CONTROL_EXTI();
 }
-
-void  __attribute__((section(".fast_code"))) divide_data_register_rd() {
-	if (ide_drive_buffer_pointer < 512) {
-		ZX_DATA_OUT(ide_drive_buffer[ide_drive_buffer_pointer++]);
-	} else {
-		ZX_DATA_OUT(0);
-	}
-	while (ZX_IS_IO_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-	ZX_DATA_HI_Z();
-	if (ide_drive_buffer_pointer == 512) {
-		divide_command_status = DIVIDE_COMMAND_DEVICE_READY;
-		ide_data_ready = 0;
-	}
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-// TODO work-in-progress
-void  __attribute__((section(".fast_code"))) divide_data_register_wr() {
-	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
-	if (ide_drive_buffer_pointer < 512) {
-		ide_drive_buffer[ide_drive_buffer_pointer++] = data;
-	}
-	if (ide_drive_buffer_pointer == 512) {
-		divide_command_status = DIVIDE_COMMAND_WRITE_BUFFER_FILLED;
-	}
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-
-void  __attribute__((section(".fast_code"))) divide_sector_count_register_wr() {
-	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
-	divide_sector_count = data;
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_drive_head_register_wr() {
-	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
-	divide_lba_3 = data;
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_drive_head_register_rd() {
-	ZX_DATA_OUT(divide_lba_3);
-	while (ZX_IS_IO_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-	ZX_DATA_HI_Z();
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_status_register_rd() {
-	if (divide_command_status == DIVIDE_COMMAND_DATA_READY) {
-		ZX_DATA_OUT(IDE_STATUS_DRDY | IDE_STATUS_DRQ); // data ready (and device ready?)
-	} else if ((divide_command_status == DIVIDE_COMMAND_ISSUED) || (divide_command_status == DIVIDE_COMMAND_IN_PROGRESS) || (divide_command_status == DIVIDE_COMMAND_WRITE_BUFFER_FILLED)) {
-		ZX_DATA_OUT(IDE_STATUS_DRDY | IDE_STATUS_BSY); // Controller is busy executing a command.
-	} else {
-		ZX_DATA_OUT(IDE_STATUS_DRDY); // device ready
-	}
-	while (ZX_IS_IO_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-	ZX_DATA_HI_Z();
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_error_register_rd() {
-	ZX_DATA_OUT(0); // no error
-	while (ZX_IS_IO_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-	ZX_DATA_HI_Z();
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-// TODO work-in-progress
-void  __attribute__((section(".fast_code"))) divide_command_register_wr() {
-	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
-	divide_command = data;
-	ide_drive_buffer_pointer = 0;
-	divide_command_status = DIVIDE_COMMAND_ISSUED;
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_lba0_wr() {
-	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
-	divide_lba_0 = data;
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_lba1_wr() {
-	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
-	divide_lba_1 = data;
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_lba2_wr() {
-	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
-	divide_lba_2 = data;
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_lba0_rd() {
-	ZX_DATA_OUT(divide_lba_0);
-	while (ZX_IS_IO_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-	ZX_DATA_HI_Z();
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_lba1_rd() {
-	ZX_DATA_OUT(divide_lba_1);
-	while (ZX_IS_IO_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-	ZX_DATA_HI_Z();
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void  __attribute__((section(".fast_code"))) divide_lba2_rd() {
-	ZX_DATA_OUT(divide_lba_2);
-	while (ZX_IS_IO_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-	ZX_DATA_HI_Z();
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
 
 void copy_roms_to_ram() {
 	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
@@ -199,22 +65,7 @@ void copy_roms_to_ram() {
 	for (i = 0; i < 256; i++) zx_io_wr_service_table[i] = zx_noop;
 	emu_memory_init();
 	// register particular port handlers
-	zx_io_rd_service_table[0x0a3] = divide_data_register_rd;
-	zx_io_wr_service_table[0x0a3] = divide_data_register_wr;
-	zx_io_rd_service_table[0x0a7] = divide_error_register_rd;
-	zx_io_wr_service_table[0x0a7] = io_wr_hang_loop;
-	zx_io_rd_service_table[0x0ab] = io_rd_hang_loop;
-	zx_io_wr_service_table[0x0ab] = divide_sector_count_register_wr;
-	zx_io_rd_service_table[0x0af] = divide_lba0_rd;
-	zx_io_wr_service_table[0x0af] = divide_lba0_wr;
-	zx_io_rd_service_table[0x0b3] = divide_lba1_rd;
-	zx_io_wr_service_table[0x0b3] = divide_lba1_wr;
-	zx_io_rd_service_table[0x0b7] = divide_lba2_rd;
-	zx_io_wr_service_table[0x0b7] = divide_lba2_wr;
-	zx_io_rd_service_table[0x0bb] = divide_drive_head_register_rd;
-	zx_io_wr_service_table[0x0bb] = divide_drive_head_register_wr;
-	zx_io_rd_service_table[0x0bf] = divide_status_register_rd;
-	zx_io_wr_service_table[0x0bf] = divide_command_register_wr;
+	emu_divide_ports_init();
 	// 128k mapovani?
 	zx_io_wr_service_table[0x0fd] = zx_noop; // ignore writes
 	zx_io_rd_service_table[0x0fd] = zx_noop; // ignore reads
@@ -225,7 +76,7 @@ void copy_roms_to_ram() {
 	zx_io_wr_service_table[0x01f] = zx_noop;
 }
 
-void  __attribute__((section(".fast_code"))) zx_io_rd() {
+void FAST_CODE zx_io_rd() {
 	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
 //	if (((address & 1) != 0) && ((address & 0xff) != 0x7f)  && ((address & 0xff) != 0xe3)) {
 //		last_port_addr = address;
@@ -235,7 +86,7 @@ void  __attribute__((section(".fast_code"))) zx_io_rd() {
 	zx_io_rd_service_table[address & 0xff]();
 }
 
-void  __attribute__((section(".fast_code"))) zx_io_wr() {
+void FAST_CODE zx_io_wr() {
 	// TODO register
 	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
 //	if (((address & 1) != 0) && ((address & 0xff) != 0x7f)  && ((address & 0xff) != 0xe3)) {
@@ -404,7 +255,7 @@ void register_zx_port_read(uint8_t port, zx_control_handler_t handler) {
 	zx_io_rd_service_table[port] = handler;
 }
 
-void __attribute__((section(".fast_code"))) EXTI4_IRQHandler(void) {
+void FAST_CODE EXTI4_IRQHandler(void) {
 
 	// read control lines (pins ZX_MEMREQ, ZX_IOREQ, ZX_WR, ZX_RD, ZX_M1)
 	register uint32_t control = ZX_CONTROL_IN_GPIO_PORT->IDR & 0b111111;
@@ -413,7 +264,7 @@ void __attribute__((section(".fast_code"))) EXTI4_IRQHandler(void) {
 	//CLEAR_ZX_CONTROL_EXTI();
 }
 
-void __attribute__((section(".fast_code"))) EXTI9_5_IRQHandler(void) {
+void FAST_CODE EXTI9_5_IRQHandler(void) {
 
 	// read control lines (pins ZX_MEMREQ, ZX_IOREQ, ZX_WR, ZX_RD, ZX_M1)
 	register uint32_t control = ZX_CONTROL_IN_GPIO_PORT->IDR & 0b111111;
