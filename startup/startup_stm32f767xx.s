@@ -2,8 +2,8 @@
   ******************************************************************************
   * @file      startup_stm32f767xx.s
   * @author    MCD Application Team
-  * @version   V1.1.1
-  * @date      01-July-2016
+  * @version   V1.2.0
+  * @date      30-December-2016
   * @brief     STM32F767xx Devices vector table for GCC based toolchain. 
   *            This module performs:
   *                - Set the initial SP
@@ -64,10 +64,6 @@ defined in linker script */
 .word  _ebss
 /* stack used for SystemInit_ExtMemCtl; always internal RAM used */
 
-/* ITCM RAM */
-.word  _sfastcode
-.word  _efastcode
-
 /**
  * @brief  This is the code that gets called when the processor first
  *          starts execution following a reset event. Only the absolutely
@@ -110,25 +106,6 @@ LoopFillZerobss:
   ldr  r3, = _ebss
   cmp  r2, r3
   bcc  FillZerobss
-
-/* Copy the fast_code segment from flash to SRAM */
-  movs  r1, #0
-  b LoopCopyFastCodeInit
-
-CopyFastCodeInit:
-  ldr  r3, =_sifastcode
-  ldr  r3, [r3, r1]
-  str  r3, [r0, r1]
-  adds  r1, r1, #4
-
-LoopCopyFastCodeInit:
-  ldr  r0, =_sfastcode
-  ldr  r3, =_efastcode
-  adds  r2, r0, r1
-  cmp  r2, r3
-  bcc  CopyFastCodeInit
-  ldr  r2, =_sbss
-
 
 /* Call the clock system initialization function.*/
   bl  SystemInit   
