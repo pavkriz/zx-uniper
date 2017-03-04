@@ -235,9 +235,11 @@ void zx_init_pins(void) {
 	HAL_Delay(500);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_ClearPendingIRQ(EXTI9_5_IRQn);
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
+  HAL_NVIC_ClearPendingIRQ(EXTI4_IRQn);
   HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 

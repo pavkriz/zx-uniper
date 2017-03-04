@@ -149,7 +149,7 @@ void emu_divide_ports_init() {
 	register_zx_port_read (0x0b3, divide_lba1_rd);
 	register_zx_port_write(0x0b3, divide_lba1_wr);
 	register_zx_port_read (0x0b7, divide_lba2_rd);
-	register_zx_port_write(0x0b7, divide_lba2_rd);
+	register_zx_port_write(0x0b7, divide_lba2_wr);
 	register_zx_port_read (0x0bb, divide_drive_head_register_rd);
 	register_zx_port_write(0x0bb, divide_drive_head_register_wr);
 	register_zx_port_read (0x0bf, divide_status_register_rd);
