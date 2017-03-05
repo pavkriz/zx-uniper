@@ -36,5 +36,6 @@ extern volatile int divide_lba_3;
 extern volatile int divide_sector_count;
 
 void emu_divide_ports_init();
+void emu_divide_ports_handle_main_loop();
 
 #endif /* EMU_DIVIDE_PORTS_H_ */
