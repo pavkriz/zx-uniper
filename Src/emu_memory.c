@@ -102,102 +102,61 @@ void emu_memory_fill_mem() {
 	} \
 }
 
-void FAST_CODE zx_mem_rd_nonm1() {
+void FAST_CODE zx_mem_rd_nonm1_8k_block0() {
 	//ASSERT_ZX_WAIT();
 	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
-	if (address < 0x2000) { // low 8kB of ROM area
-		register uint8_t data = low_8k_rom_ptr[address];
-		ZX_DATA_OUT(data);
-		//DEASSERT_ZX_WAIT();
-		while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-		ZX_DATA_HI_Z();
-	} else if (address < 0x4000) { // high 8kB of ROM area
-		register uint8_t data = high_8k_rom_minus_0x2000_ptr[address];
-		ZX_DATA_OUT(data);
-		//DEASSERT_ZX_WAIT();
-		while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-		ZX_DATA_HI_Z();
-	} else {
-		//DEASSERT_ZX_WAIT();
-	}
-	CLEAR_ZX_CONTROL_EXTI();
+	register uint8_t data = low_8k_rom_ptr[address];
+	ZX_DATA_OUT(data);
+	//DEASSERT_ZX_WAIT();
+	while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
+	ZX_DATA_HI_Z();
+	CLEAR_ZX_RD_EXTI();
 }
 
-void FAST_CODE zx_mem_rd_m1_xxx() {
+void FAST_CODE zx_mem_rd_nonm1_8k_block1() {
 	//ASSERT_ZX_WAIT();
 	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
-	register uint8_t data;
-	if (address < 0x2000) { // low 8kB of ROM area
-		data = low_8k_rom_ptr[address];
-		ZX_DATA_OUT(data);
-		//DEASSERT_ZX_WAIT();
-		while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-		ZX_DATA_HI_Z();
-		if ((address & 0xfff8) == 0x1ff8) {
-				      divide_memory_set_map_off();
-		} else if ((address == 0x0000) || (address == 0x0008) || (address == 0x0038)
-				      || (address == 0x0066) || (address == 0x04c6) || (address == 0x0562)) {
-				      divide_memory_set_map_on_1();
-				      divide_memory_set_map_on_2();
-		}
-	} else if (address < 0x3d00) { // high 8kB of ROM area, mapper's non-entry area
-		data = high_8k_rom_minus_0x2000_ptr[address];
-		ZX_DATA_OUT(data);
-		//DEASSERT_ZX_WAIT();
-		while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-		ZX_DATA_HI_Z();
-	} else if (address < 0x4000) { // high 8kB of ROM area, mapper's entry area
-		//divide_memory_set_map_on_1(); // do the minimum work here to obtain valid data (address)
-		// this is here due to gcc's way to compile this
-		data = high_8k_rom_divide_page_minus_0x2000_ptr[address];
-		ZX_DATA_OUT(data);
-		//DEASSERT_ZX_WAIT();
-		while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-		ZX_DATA_HI_Z();
+	register uint8_t data = high_8k_rom_minus_0x2000_ptr[address];
+	ZX_DATA_OUT(data);
+	//DEASSERT_ZX_WAIT();
+	while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
+	ZX_DATA_HI_Z();
+	CLEAR_ZX_RD_EXTI();
+}
+
+void FAST_CODE zx_mem_rd_m1_8k_block0() {
+	//ASSERT_ZX_WAIT();
+	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
+	register uint8_t data = low_8k_rom_ptr[address];
+	ZX_DATA_OUT(data);
+	//DEASSERT_ZX_WAIT();
+	while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
+	ZX_DATA_HI_Z();
+	if ((address & 0xfff8) == 0x1ff8) {
+				  divide_memory_set_map_off();
+	} else if ((address == 0x0000) || (address == 0x0008) || (address == 0x0038)
+				  || (address == 0x0066) || (address == 0x04c6) || (address == 0x0562)) {
+				  divide_memory_set_map_on_1();
+				  divide_memory_set_map_on_2();
+	}
+	CLEAR_ZX_RD_EXTI();
+}
+
+void FAST_CODE zx_mem_rd_m1_8k_block1() {
+	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
+	if ((address & 0xff00) == 0x3d00) {
 		divide_memory_set_map_on_1(); // do the minimum work here to obtain valid data (address)
+	}
+	// this is here due to gcc's way to compile this
+	register uint8_t data = high_8k_rom_minus_0x2000_ptr[address];
+	ZX_DATA_OUT(data);
+	//DEASSERT_ZX_WAIT();
+	while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
+	ZX_DATA_HI_Z();
+	if ((address & 0xff00) == 0x3d00) {
 		divide_memory_set_map_on_2(); // do the rest of the work
-	//} else {
-		//DEASSERT_ZX_WAIT();
 	}
-	//last_m1_addr = address;
-	CLEAR_ZX_CONTROL_EXTI();
-}
-
-void FAST_CODE zx_mem_rd_m1() {
-	//ASSERT_ZX_WAIT();
-	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
-	register uint8_t data;
-	if (address < 0x2000) { // low 8kB of ROM area
-		data = low_8k_rom_ptr[address];
-		ZX_DATA_OUT(data);
-		//DEASSERT_ZX_WAIT();
-		while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-		ZX_DATA_HI_Z();
-		if ((address & 0xfff8) == 0x1ff8) {
-				      divide_memory_set_map_off();
-		} else if ((address == 0x0000) || (address == 0x0008) || (address == 0x0038)
-				      || (address == 0x0066) || (address == 0x04c6) || (address == 0x0562)) {
-				      divide_memory_set_map_on_1();
-				      divide_memory_set_map_on_2();
-		}
-	} else if (address < 0x4000) { // high 8kB of ROM area, mapper's entry area
-		if ((address & 0xff00) == 0x3d00) {
-			divide_memory_set_map_on_1(); // do the minimum work here to obtain valid data (address)
-			divide_memory_set_map_on_2(); // do the rest of the work
-		}
-		// this is here due to gcc's way to compile this
-		data = high_8k_rom_minus_0x2000_ptr[address];
-		ZX_DATA_OUT(data);
-		//DEASSERT_ZX_WAIT();
-		while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
-		ZX_DATA_HI_Z();
-		//divide_memory_set_map_on_1(); // do the minimum work here to obtain valid data (address)
-
-	//} else {
-		//DEASSERT_ZX_WAIT();
-	}
-	//last_m1_addr = address;
-	CLEAR_ZX_CONTROL_EXTI();
+	CLEAR_ZX_RD_EXTI();
 }
 
 void FAST_CODE zx_mem_wr() {
@@ -210,7 +169,7 @@ void FAST_CODE zx_mem_wr() {
 			high_8k_rom_minus_0x2000_ptr[address] = data;
 		}
 	}
-	CLEAR_ZX_CONTROL_EXTI();
+	CLEAR_ZX_WR_EXTI();
 }
 
 void FAST_CODE divide_control_register_wr() {

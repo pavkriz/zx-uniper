@@ -13,6 +13,7 @@
 #include "stm32f7xx_hal.h"
 #include "utils.h"
 
+#define EXTI_SERVICE_TABLE_LENGTH 512
 
 #define DEASSERT_ZX_WAIT() {ZX_WAIT_GPIO_Port->BSRR = ZX_WAIT_Pin;}
 #define ASSERT_ZX_WAIT() {ZX_WAIT_GPIO_Port->BSRR = (uint32_t)ZX_WAIT_Pin << 16;}
@@ -105,75 +106,27 @@ void FAST_CODE zx_io_wr() {
 
 
 //static const
-zx_control_handler_t exti_service_table[64]={
-		// operation  // binary pattern for RD, WR, MEMREQ, dontcare, M1, IOREQ
-		zx_noop	,  //	000000
-		zx_noop	,  //	000001
-		zx_noop	,  //	000010
-		zx_noop	,  //	000011
-		zx_noop	,  //	000100
-		zx_noop	,  //	000101
-		zx_noop	,  //	000110
-		zx_noop	,  //	000111
-		zx_noop	,  //	001000
-		zx_noop	,  //	001001
-		zx_noop	,  //	001010
-		zx_noop	,  //	001011
-		zx_noop	,  //	001100
-		zx_noop	,  //	001101
-		zx_noop	,  //	001110
-		zx_noop	,  //	001111
-		zx_noop	,  //	010000
-		zx_mem_rd_m1	,  //	010001
-		zx_noop	,  //	010010
-		zx_mem_rd_nonm1	,  //	010011
-		zx_noop	,  //	010100
-		zx_mem_rd_m1	,  //	010101
-		zx_noop	,  //	010110
-		zx_mem_rd_nonm1	,  //	010111
-		zx_noop	,  //	011000
-		zx_noop	,  //	011001
-		zx_io_rd	,  //	011010
-		zx_noop	,  //	011011
-		zx_noop	,  //	011100
-		zx_noop	,  //	011101
-		zx_io_rd	,  //	011110
-		zx_noop	,  //	011111
-		zx_noop	,  //	100000
-		zx_noop	,  //	100001
-		zx_noop	,  //	100010
-		zx_mem_wr	,  //	100011
-		zx_noop	,  //	100100
-		zx_noop	,  //	100101
-		zx_noop	,  //	100110
-		zx_mem_wr	,  //	100111
-		zx_noop	,  //	101000
-		zx_noop	,  //	101001
-		zx_io_wr	,  //	101010
-		zx_noop	,  //	101011
-		zx_noop	,  //	101100
-		zx_noop	,  //	101101
-		zx_io_wr	,  //	101110
-		zx_noop	,  //	101111
-		zx_noop	,  //	110000
-		zx_noop	,  //	110001
-		zx_noop	,  //	110010
-		zx_noop	,  //	110011
-		zx_noop	,  //	110100
-		zx_noop	,  //	110101
-		zx_noop	,  //	110110
-		zx_noop	,  //	110111
-		zx_noop	,  //	111000
-		zx_noop	,  //	111001
-		zx_noop	,  //	111010
-		zx_noop	,  //	111011
-		zx_noop	,  //	111100
-		zx_noop	,  //	111101
-		zx_noop	,  //	111110
-		zx_noop	,  //	111111
-};
+zx_control_handler_t exti_service_table[EXTI_SERVICE_TABLE_LENGTH];
 
+void register_zx_control_lines_handler(uint16_t lines_to_be_low, uint16_t lines_to_be_high, zx_control_handler_t handler) {
+	for (int i = 0; i < EXTI_SERVICE_TABLE_LENGTH; i++) {
+		if (((i & lines_to_be_low) == 0) && ((i & lines_to_be_high) == lines_to_be_high)) {
+			exti_service_table[i] = handler;
+		}
+	}
+}
 
+void register_zx_control_lines_block_handler(uint16_t lines_to_be_low, uint16_t lines_to_be_high, int num_8k_block, zx_control_handler_t handler) {
+	for (int i = 0; i < EXTI_SERVICE_TABLE_LENGTH; i++) {
+		// ZX_A13_B_Pin, ZX_A14_B_Pin, ZX_A15_B_Pin need to be in line on the port in order to be able to contruct block number here
+		// (may be refactored when different pin-to-signal mapping will be needed)
+		volatile int blk = ((i & (ZX_A13_B_Pin | ZX_A14_B_Pin | ZX_A15_B_Pin)) >> 6);
+		if (((i & lines_to_be_low) == 0) && ((i & lines_to_be_high) == lines_to_be_high) && (blk == num_8k_block)) {
+			UART2_printf("register_zx_control_lines_block_handler hang to blk=%d i=0x%02x\r\n", blk, i);
+			exti_service_table[i] = handler;
+		}
+	}
+}
 
 /**
  * Set GPIO as output open-drain with pull-up
@@ -214,6 +167,21 @@ void inline init_output_pp(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin) {
 void zx_init_pins(void) {
 
 	copy_roms_to_ram();
+
+	for (int i = 0; i < EXTI_SERVICE_TABLE_LENGTH; i++) {
+		exti_service_table[i] = zx_noop; // do nothing by default
+	}
+
+	register_zx_control_lines_handler(ZX_RD_Pin | ZX_IOREQ_Pin, ZX_WR_Pin | ZX_MEMREQ_Pin, zx_io_rd);
+	register_zx_control_lines_handler(ZX_WR_Pin | ZX_IOREQ_Pin, ZX_RD_Pin | ZX_MEMREQ_Pin, zx_io_wr);
+
+	register_zx_control_lines_handler(ZX_WR_Pin | ZX_MEMREQ_Pin, ZX_RD_Pin | ZX_IOREQ_Pin, zx_mem_wr);
+
+	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin, ZX_WR_Pin | ZX_IOREQ_Pin | ZX_M1_Pin, 0, zx_mem_rd_nonm1_8k_block0);
+	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin, ZX_WR_Pin | ZX_IOREQ_Pin | ZX_M1_Pin, 1, zx_mem_rd_nonm1_8k_block1);
+
+	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin | ZX_M1_Pin, ZX_WR_Pin | ZX_IOREQ_Pin, 0, zx_mem_rd_m1_8k_block0);
+	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin | ZX_M1_Pin, ZX_WR_Pin | ZX_IOREQ_Pin, 1, zx_mem_rd_m1_8k_block1);
 
 
 	DEASSERT_ZX_RESET();
@@ -259,18 +227,18 @@ void register_zx_port_read(uint8_t port, zx_control_handler_t handler) {
 
 void FAST_CODE EXTI4_IRQHandler(void) {
 
-	// read control lines (pins ZX_MEMREQ, ZX_IOREQ, ZX_WR, ZX_RD, ZX_M1)
-	register uint32_t control = ZX_CONTROL_IN_GPIO_PORT->IDR & 0b111111;
+	// read control lines: pins ZX_IOREQ, ZX_M1, (dont-care), ZX_MEMREQ, ZX_WR, ZX_RD, ZX_A13, ZX_A14, ZX_A15
+	register uint32_t control = ZX_CONTROL_IN_GPIO_PORT->IDR & 0b111111111;
 
+	// call registered operation handler
 	exti_service_table[control]();
-	//CLEAR_ZX_CONTROL_EXTI();
 }
 
 void FAST_CODE EXTI9_5_IRQHandler(void) {
 
-	// read control lines (pins ZX_MEMREQ, ZX_IOREQ, ZX_WR, ZX_RD, ZX_M1)
-	register uint32_t control = ZX_CONTROL_IN_GPIO_PORT->IDR & 0b111111;
+	// read control lines: pins ZX_IOREQ, ZX_M1, (dont-care), ZX_MEMREQ, ZX_WR, ZX_RD, ZX_A13, ZX_A14, ZX_A15
+	register uint32_t control = ZX_CONTROL_IN_GPIO_PORT->IDR & 0b111111111;
 
+	// call registered operation handler
 	exti_service_table[control]();
-	//CLEAR_ZX_CONTROL_EXTI();
 }

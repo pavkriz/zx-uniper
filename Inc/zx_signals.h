@@ -26,6 +26,8 @@
 
 // must be called at the end of EVERY operation called from RD/WR interrupt
 #define CLEAR_ZX_CONTROL_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_RD_Pin);__HAL_GPIO_EXTI_CLEAR_IT(ZX_WR_Pin);}
+#define CLEAR_ZX_RD_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_RD_Pin);}
+#define CLEAR_ZX_WR_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_WR_Pin);}
 
 
 #endif /* ZX_SIGNALS_H_ */

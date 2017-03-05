@@ -10,8 +10,10 @@
 
 #include "utils.h"
 
-void FAST_CODE zx_mem_rd_nonm1();
-void FAST_CODE zx_mem_rd_m1();
+void FAST_CODE zx_mem_rd_nonm1_8k_block0();
+void FAST_CODE zx_mem_rd_nonm1_8k_block1();
+void FAST_CODE zx_mem_rd_m1_8k_block0();
+void FAST_CODE zx_mem_rd_m1_8k_block1();
 void FAST_CODE zx_mem_wr();
 
 void emu_memory_init();
