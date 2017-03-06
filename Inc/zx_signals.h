@@ -23,6 +23,7 @@
 #define ZX_IS_MEM_READ(control_lines) (((uint16_t)control_lines & (ZX_RD_Pin | ZX_MEMREQ_Pin)) == 0)
 // test if Z80 is doing I/O read
 #define ZX_IS_IO_READ(control_lines) (((uint16_t)control_lines & (ZX_RD_Pin | ZX_IOREQ_Pin)) == 0)
+#define ZX_IS_IO_WRITE(control_lines) (((uint16_t)control_lines & (ZX_WR_Pin | ZX_IOREQ_Pin)) == 0)
 
 // must be called at the end of EVERY operation called from RD/WR interrupt
 #define CLEAR_ZX_CONTROL_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_RD_Pin);__HAL_GPIO_EXTI_CLEAR_IT(ZX_WR_Pin);}

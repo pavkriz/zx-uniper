@@ -200,6 +200,7 @@ void FAST_CODE divide_control_register_wr() {
 	} else {
 		divide_memory_set_map_off(); // unmap divide memory (in case divide_conmem has been turned off)
 	}
+	while (ZX_IS_IO_WRITE(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
 	CLEAR_ZX_CONTROL_EXTI();
 }
 

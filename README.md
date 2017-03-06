@@ -12,9 +12,9 @@ Currently supported hardware and the way it's emulated is rather proof-of-concep
 
 * external ROM
   * alternative ROM or IF2 Cartridge ROM
-  * currently in form of C array in a header (use bin2h) compiled into to the firmware
-* Divide interface
-  * currently only read-only support, only 1 sector transfer currently supported
+  * currently in form of C array in a header file (use bin2h) compiled into to the firmware
+* Divide interface with 32kB RAM
+  * read/write support, only 1 sector transfer currently supported, no error handling yet
   * emulates IDE drive via USB Host Mass Storage (flash drive)
 
 ## Architecture
