@@ -96,65 +96,6 @@ void MX_USB_HOST_Process(void);
 uint8_t UART_Rx_data[UART_LEN];
 volatile int rx_timeouts = 0;
 
-//
-////Interrupt callback routine
-//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-//{
-//	if (huart->Instance == USART2) {
-//		ide_bytes_received_total += UART_LEN;
-//
-//		// copy byte to ide buffer
-//		for (int i = 0; i < UART_LEN; i++) {
-//			if (ide_bytes_received+i < 512) {
-//				ide_drive_buffer[ide_bytes_received+i] = UART_Rx_data[i];
-//			}
-//		}
-//		ide_bytes_received += UART_LEN;
-//		if (ide_bytes_received >= 512) {
-//			divide_command_status = DIVIDE_COMMAND_DATA_READY;
-//			ide_drive_buffer_pointer = 0;
-//		}
-//		HAL_UART_Receive_IT(&huart2, UART_Rx_data, UART_LEN);	//activate UART receive interrupt every time
-//	}
-//
-//}
-
-
-//Offset(h) 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
-//
-//00000000  7A 42 FF 3F 37 C8 10 00 00 00 00 00 3F 00 00 00  zB.?7.......?...
-//00000010  00 00 00 00 20 20 20 20 57 20 2D 44 4D 57 4E 41  ....    W -DMWNA
-//00000020  33 4B 33 30 39 34 33 38 00 00 00 10 32 00 30 32  3K309438....2.02
-//00000030  30 2E 4B 30 30 32 44 57 20 43 44 57 35 32 30 30  0.K002DW CDW5200
-//00000040  42 42 35 2D 52 35 41 44 20 30 20 20 20 20 20 20  BB5-R5AD 0
-//00000050  20 20 20 20 20 20 20 20 20 20 20 20 20 20 10 80                .€
-//00000060  00 00 00 2F 01 40 00 00 00 00 07 00 DD 10 0F 00  .../.@......Ý...
-//00000070  FF 00 0D F6 FB 00 10 01 FF FF FF 0F 00 00 07 04  ...ö............
-//00000080  03 00 78 00 78 00 78 00 78 00 00 00 00 00 00 00  ..x.x.x.x.......
-//00000090  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//000000A0  FE 00 00 00 6B 74 01 7F 33 46 69 74 01 3E 23 46  ....kt..3Fit.>#F
-//000000B0  3F 00 00 00 00 00 00 00 FE FF 0D 60 80 80 08 00  ?..........`€€..
-//000000C0  00 00 00 00 A0 86 01 00 70 59 1C 1D 00 00 00 00  .... †..pY......
-//000000D0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//000000E0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//000000F0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//00000100  01 00 00 00 00 00 00 00 00 00 76 12 00 00 00 00  ..........v.....
-//00000110  00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00  ................
-//00000120  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//00000130  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//00000140  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//00000150  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//00000160  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//00000170  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//00000180  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//00000190  00 00 00 00 00 00 00 00 00 00 00 00 3F 00 00 00  ............?...
-//000001A0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//000001B0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//000001C0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//000001D0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//000001E0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-//000001F0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 A5 B2  ................
-
 
 /* USER CODE END 0 */
 
@@ -183,8 +124,6 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
-  //HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -210,13 +149,6 @@ int main(void)
   // wait for USB disk while flashing LED
   while (!usb_disk_found) {
 	  HAL_Delay(5);
-//	  	  	  p = 0;
-//	  		  host_command_buffer[p++] = 'A';
-//	  		  host_command_buffer[p++] = '0' + GetUsbHostAppliState();
-//	  		  host_command_buffer[p++] = 13;
-//	  		  host_command_buffer[p++] = 10;
-//
-//	  		  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // ms timeout
 	  if (GetUsbHostAppliState() == APPLICATION_READY) {
 		  usb_disk_found = 1;
 	  } else {
@@ -475,123 +407,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-
-int main_UART2_IDE_emu(void)
-{
-
-  /* MCU Configuration----------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
-
-  /* Configure the system clock */
-  SystemClock_Config();
-
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  //MX_USB_DEVICE_Init();
-  //MX_UART4_Init();
-  //MX_SDMMC1_SD_Init();
-  MX_USART2_UART_Init();
-  MX_USB_HOST_Init();
-
-
-  //HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
-
-  HAL_Delay(1000); // wait for USB (CDC) init, TODO make better
-
-
-  /* Infinite loop */
-
-
-  //pin_test();
-  zx_init_pins();
-
-  //zx_mem_emu_loop();
-
-  //op_sniff_loop();
-
-  int ide_bytes_received_total = 0;
-
-  uint8_t host_command_buffer[20];
-
-  int p;
-
-  int ide_bytes_received = 0;
-
-  while (1)
-  {
-//	  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-//	  HAL_Delay(100);
-//	  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
-//	  HAL_Delay(100);
-
-	  //HAL_Delay(1);
-
-	  //__disable_irq();
-	  if (divide_command_status == DIVIDE_COMMAND_ISSUED) {
-		  divide_command_status = DIVIDE_COMMAND_IN_PROGRESS;
-		  //__enable_irq();
-		  //USB_printf("command: 0x%x LBA addr: %d'%d'%d'%d\r\n", divide_command, divide_lba_0, divide_lba_1, divide_lba_2, divide_lba_3);
-		  ide_bytes_received = 0;
-		  p = 0;
-		  host_command_buffer[p++] = 0;
-		  host_command_buffer[p++] = 3; // IDE device emulation
-		  host_command_buffer[p++] = 6; // length of request payload
-		  host_command_buffer[p++] = divide_command;
-		  host_command_buffer[p++] = divide_lba_0;
-		  host_command_buffer[p++] = divide_lba_1;
-		  host_command_buffer[p++] = divide_lba_2;
-		  host_command_buffer[p++] = divide_lba_3;
-		  host_command_buffer[p++] = divide_sector_count;
-		  host_command_buffer[p++] = 0;
-		  //CDC_Transmit_FS(host_command_buffer, p);
-		  //divide_command_status = DIVIDE_COMMAND_DATA_READY;
-		  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // 500ms timeout
-		  ide_drive_buffer_pointer = 0;
-	  } else {
-		  //__enable_irq();
-	  }
-
-	  if (divide_command_status != DIVIDE_COMMAND_IN_PROGRESS) {
-
-		  // send "alive" event
-		  p = 0;
-		  host_command_buffer[p++] = 0;
-		  host_command_buffer[p++] = 1; // alive event
-		  host_command_buffer[p++] = 0; // length of request payload
-		  host_command_buffer[p++] = 0;
-		  //usb_result = CDC_Transmit_FS(host_command_buffer, p);
-		  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // ms timeout
-	  } else {
-		  while ((divide_command_status == DIVIDE_COMMAND_IN_PROGRESS) && (HAL_UART_Receive(&huart2, UART_Rx_data, UART_LEN, 10) == HAL_OK)) { // ms timeout
-			  ide_bytes_received_total += UART_LEN;
-
-				// copy byte to ide buffer
-				for (int i = 0; i < UART_LEN; i++) {
-					if (ide_bytes_received+i < 512) {
-						ide_drive_buffer[ide_bytes_received+i] = UART_Rx_data[i];
-					}
-				}
-				// DI?
-				//__disable_irq();
-				ide_bytes_received += UART_LEN;
-				if (ide_bytes_received >= 512) {
-					divide_command_status = DIVIDE_COMMAND_DATA_READY;
-				}
-				 //__enable_irq();
-				// EI?
-		  }
-		  if (divide_command_status == DIVIDE_COMMAND_IN_PROGRESS) rx_timeouts++;
-	  }
-
-	  	// __WFI();
-
-
-  }
-
-}
 
 void UART2_printf(const char *fmt, ...) {
 	char textbuf[2000]; //string buffer
