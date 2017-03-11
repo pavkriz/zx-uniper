@@ -204,7 +204,34 @@ void FAST_CODE divide_control_register_wr() {
 	CLEAR_ZX_CONTROL_EXTI();
 }
 
-void emu_memory_init() {
+void emu_default_start() {
+	// stop ZX
+	ASSERT_ZX_RESET();
+
 	emu_memory_fill_mem();
+
+	// register all ZX control lines handlers
+
+	clear_zx_control_lines_handlers();
+
+	register_zx_control_lines_handler(ZX_RD_Pin | ZX_IOREQ_Pin, ZX_WR_Pin | ZX_MEMREQ_Pin, zx_io_rd);
+	register_zx_control_lines_handler(ZX_WR_Pin | ZX_IOREQ_Pin, ZX_RD_Pin | ZX_MEMREQ_Pin, zx_io_wr);
+
+	register_zx_control_lines_handler(ZX_WR_Pin | ZX_MEMREQ_Pin, ZX_RD_Pin | ZX_IOREQ_Pin, zx_mem_wr);
+
+	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin, ZX_WR_Pin | ZX_IOREQ_Pin | ZX_M1_Pin, 0, zx_mem_rd_nonm1_8k_block0);
+	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin, ZX_WR_Pin | ZX_IOREQ_Pin | ZX_M1_Pin, 1, zx_mem_rd_nonm1_8k_block1);
+
+	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin | ZX_M1_Pin, ZX_WR_Pin | ZX_IOREQ_Pin, 0, zx_mem_rd_m1_8k_block0);
+	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin | ZX_M1_Pin, ZX_WR_Pin | ZX_IOREQ_Pin, 1, zx_mem_rd_m1_8k_block1);
+
+	// register particular port handlers
+	clear_zx_port_handlers();
 	register_zx_port_write(0x0e3, divide_control_register_wr);
+	emu_divide_ports_init();
+
+	HAL_Delay(50);
+
+	// start ZX
+	DEASSERT_ZX_RESET();
 }

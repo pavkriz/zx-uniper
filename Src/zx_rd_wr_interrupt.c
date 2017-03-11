@@ -18,9 +18,6 @@
 #define DEASSERT_ZX_WAIT() {ZX_WAIT_GPIO_Port->BSRR = ZX_WAIT_Pin;}
 #define ASSERT_ZX_WAIT() {ZX_WAIT_GPIO_Port->BSRR = (uint32_t)ZX_WAIT_Pin << 16;}
 
-#define DEASSERT_ZX_RESET() {ZX_RESET_GPIO_Port->BSRR = ZX_RESET_Pin;}
-#define ASSERT_ZX_RESET() {ZX_RESET_GPIO_Port->BSRR = (uint32_t)ZX_RESET_Pin << 16;}
-
 #define DEASSERT_ZX_ROMCS() {ZX_ROMCS_GPIO_Port->BSRR = ZX_ROMCS_Pin;}
 #define ASSERT_ZX_ROMCS() {ZX_ROMCS_GPIO_Port->BSRR = (uint32_t)ZX_ROMCS_Pin << 16;}
 
@@ -56,25 +53,6 @@ void FAST_CODE io_rd_hang_loop() {
 	CLEAR_ZX_CONTROL_EXTI();
 }
 
-void copy_roms_to_ram() {
-	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-	uint32_t i;
-	// by default, do not handle IO operations on any port
-	for (i = 0; i < 256; i++) zx_io_rd_service_table[i] = zx_noop;
-	for (i = 0; i < 256; i++) zx_io_wr_service_table[i] = zx_noop;
-	emu_memory_init();
-	// register particular port handlers
-	emu_divide_ports_init();
-	// 128k mapovani?
-	zx_io_wr_service_table[0x0fd] = zx_noop; // ignore writes
-	zx_io_rd_service_table[0x0fd] = zx_noop; // ignore reads
-	// nejaka mys?
-	zx_io_wr_service_table[0x07f] = zx_noop; // ignore writes
-	// kempston joystick
-	zx_io_rd_service_table[0x01f] = zx_noop;
-	zx_io_wr_service_table[0x01f] = zx_noop;
-}
-
 void FAST_CODE zx_io_rd() {
 	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
 //	if (((address & 1) != 0) && ((address & 0xff) != 0x7f)  && ((address & 0xff) != 0xe3)) {
@@ -105,6 +83,12 @@ void FAST_CODE zx_io_wr() {
 
 //static const
 zx_control_handler_t exti_service_table[EXTI_SERVICE_TABLE_LENGTH];
+
+void clear_zx_control_lines_handlers() {
+	for (int i = 0; i < EXTI_SERVICE_TABLE_LENGTH; i++) {
+		exti_service_table[i] = zx_noop; // do nothing by default
+	}
+}
 
 void register_zx_control_lines_handler(uint16_t lines_to_be_low, uint16_t lines_to_be_high, zx_control_handler_t handler) {
 	for (int i = 0; i < EXTI_SERVICE_TABLE_LENGTH; i++) {
@@ -160,59 +144,42 @@ void inline init_output_pp(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin) {
 }
 
 /**
- * Initialize particular pins to output mode
+ * Initialize particular pins to output mode,
+ * enable GPIO interrupts on ZX_RD and ZX_WRITE,
+ * keep ZX Spectrum stopped (via ZX_RESET)
  */
 void zx_init_pins(void) {
+	// make sure we do not handle any ZX control operations
+	clear_zx_control_lines_handlers();
 
-	copy_roms_to_ram();
-
-	for (int i = 0; i < EXTI_SERVICE_TABLE_LENGTH; i++) {
-		exti_service_table[i] = zx_noop; // do nothing by default
-	}
-
-	register_zx_control_lines_handler(ZX_RD_Pin | ZX_IOREQ_Pin, ZX_WR_Pin | ZX_MEMREQ_Pin, zx_io_rd);
-	register_zx_control_lines_handler(ZX_WR_Pin | ZX_IOREQ_Pin, ZX_RD_Pin | ZX_MEMREQ_Pin, zx_io_wr);
-
-	register_zx_control_lines_handler(ZX_WR_Pin | ZX_MEMREQ_Pin, ZX_RD_Pin | ZX_IOREQ_Pin, zx_mem_wr);
-
-	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin, ZX_WR_Pin | ZX_IOREQ_Pin | ZX_M1_Pin, 0, zx_mem_rd_nonm1_8k_block0);
-	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin, ZX_WR_Pin | ZX_IOREQ_Pin | ZX_M1_Pin, 1, zx_mem_rd_nonm1_8k_block1);
-
-	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin | ZX_M1_Pin, ZX_WR_Pin | ZX_IOREQ_Pin, 0, zx_mem_rd_m1_8k_block0);
-	register_zx_control_lines_block_handler(ZX_RD_Pin | ZX_MEMREQ_Pin | ZX_M1_Pin, ZX_WR_Pin | ZX_IOREQ_Pin, 1, zx_mem_rd_m1_8k_block1);
-
-
-	DEASSERT_ZX_RESET();
+	ASSERT_ZX_RESET();
 	init_output_od(ZX_RESET_GPIO_Port, ZX_RESET_Pin);
 
 	DEASSERT_ZX_WAIT();
-	//init_output_od_pullup(ZX_WAIT_GPIO_Port, ZX_WAIT_Pin);
 	init_output_pp(ZX_WAIT_GPIO_Port, ZX_WAIT_Pin);
 
 	// disable internal ZX ROM permanently
 	DEASSERT_ZX_ROMCS();
 	init_output_pp(ZX_ROMCS_GPIO_Port, ZX_ROMCS_Pin);
 
-	// reset ZX Spectrum
-
+	// make sure ZX Spectrum is stopped
 	ASSERT_ZX_RESET();
 
+	/* EXTI interrupt init*/
+	HAL_NVIC_ClearPendingIRQ(EXTI9_5_IRQn);
+	HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
-	HAL_Delay(500);
+	HAL_NVIC_ClearPendingIRQ(EXTI4_IRQn);
+	HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+}
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_ClearPendingIRQ(EXTI9_5_IRQn);
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
-  HAL_NVIC_ClearPendingIRQ(EXTI4_IRQn);
-  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
-	HAL_Delay(500);
-
-
-	DEASSERT_ZX_RESET();
+void clear_zx_port_handlers() {
+	// by default, do not handle IO operations on any port
+	int i;
+	for (i = 0; i < 256; i++) zx_io_rd_service_table[i] = zx_noop;
+	for (i = 0; i < 256; i++) zx_io_wr_service_table[i] = zx_noop;
 }
 
 void register_zx_port_write(uint8_t port, zx_control_handler_t handler) {

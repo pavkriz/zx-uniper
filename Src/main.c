@@ -56,6 +56,7 @@
 #include "usb_host.h"
 #include "usbh_msc.h"
 #include "emu_divide_ports.h"
+#include "uniper_splash.h"
 
 
 /* USER CODE END Includes */
@@ -195,11 +196,20 @@ int main(void)
 
   UART2_printf("=========== START ===============\r\n");
 
+  int zx_init_done = 0;
+
+  UART2_printf("zx_init_pins start\r\n");
+  zx_init_pins();
+  uniper_splash_show();
+  UART2_printf("zx_init_pins end\r\n");
+  zx_init_done = 1;
+
+
   int usb_disk_found = 0;
   int led_status = 0;
   // wait for USB disk while flashing LED
   while (!usb_disk_found) {
-	  HAL_Delay(5);
+	  HAL_Delay(50);
 //	  	  	  p = 0;
 //	  		  host_command_buffer[p++] = 'A';
 //	  		  host_command_buffer[p++] = '0' + GetUsbHostAppliState();
@@ -228,60 +238,11 @@ int main(void)
   UART2_printf("USB block_number=%d, block_size=%d\r\n", lunInfo.capacity.block_nbr, lunInfo.capacity.block_size);
 
   int startTick = HAL_GetTick();
-  int zx_init_done = 0;
 
-  UART2_printf("zx_init_pins start\r\n");
-  zx_init_pins();
-  UART2_printf("zx_init_pins end\r\n");
-  zx_init_done = 1;
+  emu_default_start();
 
   while (1)
   {
-
-//	  if (((HAL_GetTick() - startTick) > 10000) && !zx_init_done) {
-//		  UART2_printf("zx_init_pins start\r\n");
-//		  zx_init_pins();
-//		  UART2_printf("zx_init_pins end\r\n");
-//		  zx_init_done = 1;
-//	  }
-
-	  if (!zx_init_done) {
-	  //if (!zx_init_done || (zx_init_done && (((HAL_GetTick()/1000) % 2) == 0))) {
-		  HAL_Delay(100);
-
-		  p = 0;
-		  host_command_buffer[p++] = 'A';
-		  host_command_buffer[p++] = '0' + GetUsbHostAppliState();
-		  host_command_buffer[p++] = 13;
-		  host_command_buffer[p++] = 10;
-
-		  HAL_UART_Transmit(&huart2, host_command_buffer, p, 500); // ms timeout
-
-		  if (GetUsbHostAppliState() == APPLICATION_READY) {
-			  // USB Drive ready
-			  // get info
-			  MSC_LUNTypeDef lunInfo;
-			  MSC_GetLUN0Info(&lunInfo);
-			  UART2_printf("block_number=%d, block_size=%d\r\n", lunInfo.capacity.block_nbr, lunInfo.capacity.block_size);
-
-			  MSC_Read(0, sector_buffer, 1);
-			  UART2_printf("Data sector 0:");
-			  for (int i = 0; i < 512; i++) {
-				  if (i % 16 == 0) UART2_printf("\r\n%04x:", i);
-				  UART2_printf("%02x ", sector_buffer[i]);
-			  }
-			  UART2_printf("\r\n");
-
-			  MSC_Read(2048, sector_buffer, 1);
-			  UART2_printf("Data sector 2048:");
-			  for (int i = 0; i < 512; i++) {
-				  if (i % 16 == 0) UART2_printf("\r\n%04x:", i);
-				  UART2_printf("%02x ", sector_buffer[i]);
-			  }
-			  UART2_printf("\r\n");
-			  HAL_Delay(1000);
-		  }
-	  }
 
 	  emu_divide_ports_handle_main_loop();
 

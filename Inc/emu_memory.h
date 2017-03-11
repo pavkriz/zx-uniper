@@ -16,6 +16,6 @@ void FAST_CODE zx_mem_rd_m1_8k_block0();
 void FAST_CODE zx_mem_rd_m1_8k_block1();
 void FAST_CODE zx_mem_wr();
 
-void emu_memory_init();
+void emu_default_start();
 
 #endif /* EMU_MEMORY_H_ */
