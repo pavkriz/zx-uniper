@@ -17,5 +17,7 @@ void FAST_CODE zx_mem_rd_m1_8k_block1();
 void FAST_CODE zx_mem_wr();
 
 void emu_default_start();
+void emu_memory_fill_zx_rom(const char didaktik_gama_89_mod_rom[], int length);
+void emu_memory_page_zx_rom_in();
 
 #endif /* EMU_MEMORY_H_ */

@@ -18,6 +18,7 @@
 #include "zx_signals.h"
 #include "utils.h"
 #include "zx_rd_wr_interrupt.h"
+#include "emu_divide_ports.h"
 
 //0. 16kb = Divide RAM pages 0,1
 //1. 16kb = Divide RAM pages 2,3
@@ -51,6 +52,23 @@ __attribute__((section(".begin_data1"))) uint8_t *high_8k_rom_divide_page_minus_
 __attribute__((section(".begin_data1"))) uint8_t *divide_eeprom_addr = device_ram + 3*0x4000; // Divide ROM at startup
 
 
+void emu_memory_fill_zx_rom(const char rom[], int length) {
+	int i;
+	for (i = 0; i < length && i < 16384; i++) device_ram[i+2*16384] = rom[i];
+}
+
+void emu_memory_page_divide_in() {
+	// init pointers
+	low_8k_rom_ptr = device_ram;
+	high_8k_rom_minus_0x2000_ptr = device_ram;
+}
+
+void emu_memory_page_zx_rom_in() {
+	// init pointers
+	low_8k_rom_ptr = device_ram + 2*16384;
+	high_8k_rom_minus_0x2000_ptr = device_ram + 2*16384;
+}
+
 void emu_memory_fill_mem() {
 	uint32_t i;
 	// BANK 0
@@ -58,12 +76,10 @@ void emu_memory_fill_mem() {
 	// BANK 1
 	// empty at startup
 	// BANK 2
-	for (i = 0; i < sizeof(didaktik_gama_89_mod_rom) && i < 16384; i++) device_ram[i+2*16384] = didaktik_gama_89_mod_rom[i];
+	emu_memory_fill_zx_rom(didaktik_gama_89_mod_rom, sizeof(didaktik_gama_89_mod_rom));
 	// BANK 3
 	for (i = 0; i < sizeof(esxide085_rom) && i < 16384; i++) device_ram[i+3*16384] = esxide085_rom[i];
-	// init pointers
-	low_8k_rom_ptr = device_ram;
-	high_8k_rom_minus_0x2000_ptr = device_ram;
+	emu_memory_page_divide_in();
 }
 
 //void FAST_CODE __STATIC_INLINE divide_memory_set_map_on() {

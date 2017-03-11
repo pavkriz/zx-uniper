@@ -209,7 +209,7 @@ int main(void)
   int led_status = 0;
   // wait for USB disk while flashing LED
   while (!usb_disk_found) {
-	  HAL_Delay(50);
+	  HAL_Delay(5);
 //	  	  	  p = 0;
 //	  		  host_command_buffer[p++] = 'A';
 //	  		  host_command_buffer[p++] = '0' + GetUsbHostAppliState();

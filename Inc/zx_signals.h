@@ -30,5 +30,8 @@
 #define CLEAR_ZX_RD_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_RD_Pin);}
 #define CLEAR_ZX_WR_EXTI() {__HAL_GPIO_EXTI_CLEAR_IT(ZX_WR_Pin);}
 
+#define DEASSERT_ZX_RESET() {ZX_RESET_GPIO_Port->BSRR = ZX_RESET_Pin;}
+#define ASSERT_ZX_RESET() {ZX_RESET_GPIO_Port->BSRR = (uint32_t)ZX_RESET_Pin << 16;}
+
 
 #endif /* ZX_SIGNALS_H_ */

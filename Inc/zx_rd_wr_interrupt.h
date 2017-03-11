@@ -31,8 +31,4 @@ void FAST_CODE io_rd_hang_loop();
 void FAST_CODE zx_io_rd();
 void FAST_CODE zx_io_wr();
 
-#define DEASSERT_ZX_RESET() {ZX_RESET_GPIO_Port->BSRR = ZX_RESET_Pin;}
-#define ASSERT_ZX_RESET() {ZX_RESET_GPIO_Port->BSRR = (uint32_t)ZX_RESET_Pin << 16;}
-
-
 #endif /* ZX_RD_WR_INTERRUPT_H_X_ */
