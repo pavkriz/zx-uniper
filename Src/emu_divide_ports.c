@@ -11,6 +11,7 @@
 #include "zx_signals.h"
 #include "utils.h"
 #include "zx_rd_wr_interrupt.h"
+#include "uniper_splash.h"
 
 // ======= ARM <--> emulated IDE device interface ========
 #include "usb_host.h"
@@ -210,9 +211,6 @@ void FAST_CODE divide_data_register_wr() {
 void FAST_CODE divide_sector_count_register_wr() {
 	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0xff;
 	divide_sector_count = data;
-	if (data > 1) {
-		HANG_LOOP();
-	}
 	while (ZX_IS_IO_WRITE(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
 	CLEAR_ZX_CONTROL_EXTI();
 }
@@ -325,12 +323,12 @@ void FAST_CODE divide_status_register_rd() {
 */
 void fill_chs(ATA_IDENTIFY_DATA *ataIdentifyBuffer, uint32_t lba_blocks) {
 	ataIdentifyBuffer->sectors_per_track = 63;
-	long lba_bytes = lba_blocks * 512; // TODO BSOD on sector size different from 512
-	if 		(lba_bytes <= 504*1024*1024) 	ataIdentifyBuffer->heads = 16;
-	else if (lba_bytes <= 1008*1024*1024) 	ataIdentifyBuffer->heads = 32;
-	else if (lba_bytes <= 2016*1024*1024) 	ataIdentifyBuffer->heads = 64;
-	else if (lba_bytes <= 4032*1024*1024) 	ataIdentifyBuffer->heads = 128;
-	else if (lba_bytes <= 8032.5*1024*1024) ataIdentifyBuffer->heads = 255;
+	long long lba_bytes = lba_blocks * 512; // TODO BSOD on sector size different from 512
+	if 		(lba_bytes <= 504*1024*1024) 		ataIdentifyBuffer->heads = 16;
+	else if (lba_bytes <= 1008*1024*1024) 		ataIdentifyBuffer->heads = 32;
+	else if (lba_bytes <= 2016*1024*1024) 		ataIdentifyBuffer->heads = 64;
+	else if (lba_bytes <= 4032*1024*1024LL) 	ataIdentifyBuffer->heads = 128;
+	else if (lba_bytes <= 8032.5*1024*1024LL) 	ataIdentifyBuffer->heads = 255;
 	if (lba_bytes <= 8032.5*1024*1024) {
 		ataIdentifyBuffer->cylinders = lba_blocks/63/ataIdentifyBuffer->heads;
 	} else {
@@ -402,7 +400,7 @@ void emu_divide_ports_handle_main_loop() {
 		if (GetUsbHostAppliState() == APPLICATION_READY) {
 			divide_command_status = DIVIDE_COMMAND_IN_PROGRESS;
 			if (divide_sector_count > 1) {
-				HANG_LOOP();
+				uniper_splash_bsod(ZX_SPLASH_CODE_UNSUPPORTED_SECTOR_COUNT, divide_sector_count);
 			}
 			if (divide_command == 0x20) {
 				UART2_printf("USB reading LBA=%d\r\n", lba_address);
@@ -437,6 +435,7 @@ void emu_divide_ports_handle_main_loop() {
 				divide_command_status = DIVIDE_COMMAND_DATA_READY;
 			} else {
 				UART2_printf("UKNOWN IDE COMMAND %d\r\n", divide_command);
+				uniper_splash_bsod(ZX_SPLASH_CODE_UNSUPPORTED_ATA_COMMAND, divide_command);
 			}
 		} else {
 			UART2_printf("DEVICE NOT READY, COMMAND WAITING: %d\r\n",

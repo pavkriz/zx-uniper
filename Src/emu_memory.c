@@ -57,6 +57,10 @@ void emu_memory_fill_zx_rom(const char rom[], int length) {
 	for (i = 0; i < length && i < 16384; i++) device_ram[i+2*16384] = rom[i];
 }
 
+void emu_memory_poke_rom(uint16_t addr, uint8_t value) {
+	device_ram[addr+2*16384] = value;
+}
+
 void emu_memory_page_divide_in() {
 	// init pointers
 	low_8k_rom_ptr = device_ram;

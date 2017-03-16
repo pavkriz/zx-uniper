@@ -139,7 +139,7 @@ int main(void)
 
   UART2_printf("zx_init_pins start\r\n");
   zx_init_pins();
-  uniper_splash_show();
+  uniper_splash_show_boot();
   UART2_printf("zx_init_pins end\r\n");
   zx_init_done = 1;
 
