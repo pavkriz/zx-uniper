@@ -20,6 +20,69 @@
 #define PIO_PHASE_IN 	2
 #define PIO_PHASE_OUT 	3
 
+// Structs for various ATA versions:
+//   https://github.com/ARM-software/edk2/blob/master/MdePkg/Include/IndustryStandard/Atapi.h
+// Explanation of some fields and sample data from real drive:
+//   https://github.com/krieger-od/whdd/issues/57#issuecomment-41500941
+
+///
+/// ATA5_IDENTIFY_DATA is defined in ATA-5.
+/// (This structure is provided mainly for backward-compatibility support.
+/// Old drivers may reference fields that are marked "obsolete" in
+/// ATA_IDENTIFY_DATA, which currently conforms to ATA-8.)
+///
+typedef struct {
+  uint16_t  config;             ///< General Configuration.
+  uint16_t  cylinders;          ///< Number of Cylinders.
+  uint16_t  reserved_2;
+  uint16_t  heads;              ///< Number of logical heads.
+  uint16_t  vendor_data1;
+  uint16_t  vendor_data2;
+  uint16_t  sectors_per_track;
+  uint16_t  vendor_specific_7_9[3];
+  char   	SerialNo[20];       ///< ASCII (word 10)
+  uint16_t  vendor_specific_20_21[2];
+  uint16_t  ecc_bytes_available;
+  char   	FirmwareVer[8];     ///< ASCII
+  char   	ModelName[40];      ///< ASCII
+  uint16_t  multi_sector_cmd_max_sct_cnt;
+  uint16_t  reserved_48;
+  uint16_t  capabilities;
+  uint16_t  reserved_50;
+  uint16_t  pio_cycle_timing;
+  uint16_t  reserved_52;
+  uint16_t  field_validity;
+  uint16_t  current_cylinders;
+  uint16_t  current_heads;
+  uint16_t  current_sectors;
+  uint16_t  CurrentCapacityLsb;
+  uint16_t  CurrentCapacityMsb;
+  uint16_t  reserved_59;
+  uint16_t  user_addressable_sectors_lo;
+  uint16_t  user_addressable_sectors_hi;
+  uint16_t  reserved_62;
+  uint16_t  multi_word_dma_mode;
+  uint16_t  advanced_pio_modes;
+  uint16_t  min_multi_word_dma_cycle_time;
+  uint16_t  rec_multi_word_dma_cycle_time;
+  uint16_t  min_pio_cycle_time_without_flow_control;
+  uint16_t  min_pio_cycle_time_with_flow_control;
+  uint16_t  reserved_69_79[11];
+  uint16_t  major_version_no;
+  uint16_t  minor_version_no;
+  uint16_t  command_set_supported_82;    ///< word 82
+  uint16_t  command_set_supported_83;    ///< word 83
+  uint16_t  command_set_feature_extn;    ///< word 84
+  uint16_t  command_set_feature_enb_85;  ///< word 85
+  uint16_t  command_set_feature_enb_86;  ///< word 86
+  uint16_t  command_set_feature_default; ///< word 87
+  uint16_t  ultra_dma_mode;              ///< word 88
+  uint16_t  reserved_89_127[39];
+  uint16_t  security_status;
+  uint16_t  vendor_data_129_159[31];
+  uint16_t  reserved_160_255[96];
+} __attribute__((packed, aligned(4))) ATA_IDENTIFY_DATA;
+
 int volatile divide_command = 0;
 int volatile divide_command_status = DIVIDE_COMMAND_DEVICE_READY;
 int volatile divide_lba_0 = 0;
@@ -33,42 +96,7 @@ volatile uint8_t ide_drive_buffer[512];
 volatile int ide_drive_pio_phase = PIO_PHASE_READY;
 volatile uint32_t lba_address;
 
-const uint8_t ideIdentifyBuffer[] = {
-    // WD2500BB ATA_CMD_IDENTIFY  0xEC command output buffer, lowbyte, highbyte
-    0x7A,0x42,0xFF,0x3F,0x37,0xC8,0x10,0x00,0x00,0x00,0x00,0x00,0x3F,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x20,0x20,0x20,0x20,0x57,0x20,0x2D,0x44,0x4D,0x57,0x4E,0x41,
-    0x33,0x4B,0x33,0x30,0x39,0x34,0x33,0x38,0x00,0x00,0x00,0x10,0x32,0x00,0x30,0x32,
-    0x30,0x2E,0x4B,0x30,0x30,0x32,0x44,0x57,0x20,0x43,0x44,0x57,0x35,0x32,0x30,0x30,
-    0x42,0x42,0x35,0x2D,0x52,0x35,0x41,0x44,0x20,0x30,0x20,0x20,0x20,0x20,0x20,0x20,
-    0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x10,0x80,
-    0x00,0x00,0x00,0x2F,0x01,0x40,0x00,0x00,0x00,0x00,0x07,0x00,0xDD,0x10,0x0F,0x00,
-    0xFF,0x00,0x0D,0xF6,0xFB,0x00,0x10,0x01,0xFF,0xFF,0xFF,0x0F,0x00,0x00,0x07,0x04,
-    0x03,0x00,0x78,0x00,0x78,0x00,0x78,0x00,0x78,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0xFE,0x00,0x00,0x00,0x6B,0x74,0x01,0x7F,0x33,0x46,0x69,0x74,0x01,0x3E,0x23,0x46,
-    0x3F,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFE,0xFF,0x0D,0x60,0x80,0x80,0x08,0x00,
-    0x00,0x00,0x00,0x00,0xA0,0x86,0x01,0x00,0x70,0x59,0x1C,0x1D,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x76,0x12,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3F,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xA5,0xB2
-};
-
+ATA_IDENTIFY_DATA ideIdentifyBuffer;
 
 void dump_ide_partition_entry(uint8_t ide_drive_buffer_mbr[], int entry_number) {
 	 int offset = 0x1be + entry_number*16;
@@ -278,6 +306,96 @@ void FAST_CODE divide_status_register_rd() {
 	CLEAR_ZX_CONTROL_EXTI();
 }
 
+/*
+ Translate LBA size to CHS
+ https://en.wikipedia.org/wiki/Logical_block_addressing#LBA-assisted_translation
+ Disk size					Sectors/track	Heads	Cylinders
+ 1 < X <= 504 MiB				63				16		X / (63 * 16 * 512)
+ 504 MiB < X <= 1008 MiB		63				32		X / (63 * 32 * 512)
+ 1008 MiB < X <= 2016 MiB		63				64		X / (63 * 64 * 512)
+ 2016 MiB < X <= 4032 MiB		63				128		X / (63 * 128 * 512)
+ 4032 MiB < X <= 8032.5 MiB		63				255		X / (63 * 255 * 512)
+ for larger capacities, indicate S=63 H=16 C=16383 S*H*C=16514064
+ According to the ATA specifications, "If the content of words (61:60) is
+ greater than or equal to 16,514,064, then the content of word 1
+ [the number of logical cylinders] shall be equal to 16,383."
+ Therefore, for LBA 16450559, an ATA drive may actually respond with the
+ CHS tuple (16319, 15, 63), and the number of cylinders in this
+ scheme must be much larger than 1024 allowed by INT 13h.[a]
+*/
+void fill_chs(ATA_IDENTIFY_DATA *ataIdentifyBuffer, uint32_t lba_blocks) {
+	ataIdentifyBuffer->sectors_per_track = 63;
+	long lba_bytes = lba_blocks * 512; // TODO BSOD on sector size different from 512
+	if 		(lba_bytes <= 504*1024*1024) 	ataIdentifyBuffer->heads = 16;
+	else if (lba_bytes <= 1008*1024*1024) 	ataIdentifyBuffer->heads = 32;
+	else if (lba_bytes <= 2016*1024*1024) 	ataIdentifyBuffer->heads = 64;
+	else if (lba_bytes <= 4032*1024*1024) 	ataIdentifyBuffer->heads = 128;
+	else if (lba_bytes <= 8032.5*1024*1024) ataIdentifyBuffer->heads = 255;
+	if (lba_bytes <= 8032.5*1024*1024) {
+		ataIdentifyBuffer->cylinders = lba_blocks/63/ataIdentifyBuffer->heads;
+	} else {
+		ataIdentifyBuffer->heads = 16;
+		ataIdentifyBuffer->cylinders = 16383;
+	}
+}
+
+void fill_ata_identify_data(ATA_IDENTIFY_DATA *ataIdentifyBuffer) {
+	MSC_LUNTypeDef lunInfo;
+	MSC_GetLUN0Info(&lunInfo);
+
+	char dst[41] = "";
+	char tmp[41] = "";
+
+	// dst = dst + vendor
+	strlcpy(tmp, lunInfo.inquiry.vendor_id, sizeof(tmp));
+	strtrim(tmp);
+	strlcat(dst, tmp, sizeof(dst));
+
+	// dst = dst + ""
+	strlcat(dst, " ", sizeof(dst));
+
+	// dst = dst + product
+	strlcpy(tmp, lunInfo.inquiry.product_id, sizeof(tmp));
+	strtrim(tmp);
+	strlcat(dst, tmp, sizeof(dst));
+
+	// dst = dst + ""
+	strlcat(dst, " ", sizeof(dst));
+
+	// dst = dst + revision
+	strlcpy(tmp, lunInfo.inquiry.revision_id, sizeof(tmp));
+	strtrim(tmp);
+	strlcat(dst, tmp, sizeof(dst));
+
+	ataIdentifyBuffer->config = 0x427a;
+	fill_chs(ataIdentifyBuffer, lunInfo.capacity.block_nbr);
+
+	strlcpy(ataIdentifyBuffer->SerialNo, "                    ", sizeof(ataIdentifyBuffer->SerialNo)); // left padded serial no (not available via USB host)
+
+	copy_right_padded(ataIdentifyBuffer->FirmwareVer, lunInfo.inquiry.revision_id, sizeof(ataIdentifyBuffer->FirmwareVer));
+	scramble_ata_string(ataIdentifyBuffer->FirmwareVer, sizeof(ataIdentifyBuffer->FirmwareVer));
+
+	copy_right_padded(ataIdentifyBuffer->ModelName, dst, sizeof(ataIdentifyBuffer->ModelName)); // right padded
+	scramble_ata_string(ataIdentifyBuffer->ModelName, sizeof(ataIdentifyBuffer->ModelName));
+
+	ataIdentifyBuffer->multi_sector_cmd_max_sct_cnt = 0x8010; // max. 16 sectors per READ/WRITE MULTIPLE
+	ataIdentifyBuffer->capabilities = 0x2f00; // or 0x0200
+	ataIdentifyBuffer->reserved_50 = 0x4000;
+	ataIdentifyBuffer->pio_cycle_timing = 0x0200;
+	ataIdentifyBuffer->field_validity = 1;
+	ataIdentifyBuffer->current_cylinders = ataIdentifyBuffer->cylinders;
+	ataIdentifyBuffer->current_heads = ataIdentifyBuffer->heads;
+	ataIdentifyBuffer->current_sectors = ataIdentifyBuffer->sectors_per_track;
+	long total_sectors_count_chs = ataIdentifyBuffer->cylinders * ataIdentifyBuffer->heads * ataIdentifyBuffer->sectors_per_track;
+	ataIdentifyBuffer->CurrentCapacityLsb = total_sectors_count_chs & 0x0000ffff;
+	ataIdentifyBuffer->CurrentCapacityMsb = (total_sectors_count_chs & 0xffff0000) >> 16;
+	// User addressable sectors for 28-bit commands (DWord): (may be higher than CurrentCapacity*)
+	long total_sectors_count_28bit = lunInfo.capacity.block_nbr & 0xfffffff;
+	ataIdentifyBuffer->user_addressable_sectors_lo = total_sectors_count_28bit & 0x0000ffff;
+	ataIdentifyBuffer->user_addressable_sectors_hi = (total_sectors_count_28bit & 0xffff0000) >> 16;
+
+}
+
 void emu_divide_ports_handle_main_loop() {
 
 	if (divide_command_status == DIVIDE_COMMAND_ISSUED) {
@@ -312,7 +430,8 @@ void emu_divide_ports_handle_main_loop() {
 			} else if (divide_command == 0xEC) {
 				// ATA IDENTIFY CMD
 				UART2_printf("USB reading ATA IDENTIFY\r\n");
-				memcpy(ide_drive_buffer, ideIdentifyBuffer, 512);
+				fill_ata_identify_data(&ideIdentifyBuffer);
+				memcpy(ide_drive_buffer, &ideIdentifyBuffer, 512);
 				ide_drive_buffer_pointer = 0;
 				ide_drive_pio_phase = PIO_PHASE_IN;
 				divide_command_status = DIVIDE_COMMAND_DATA_READY;
