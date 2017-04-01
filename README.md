@@ -12,7 +12,7 @@ Currently supported hardware and the way it's emulated is rather proof-of-concep
 
 * external ROM
   * alternative ROM or IF2 Cartridge ROM
-  * currently in form of C array in a header file (use bin2h) compiled into to the firmware
+  * ZX's ROM is copied into uniper's RAM during uniper's boot and may be used as an emulated (optionally patched) ROM
 * Divide interface with 32kB RAM
   * read/write support, only 1 sector transfer currently supported, no error handling yet
   * emulates IDE drive via USB Host Mass Storage (flash drive)

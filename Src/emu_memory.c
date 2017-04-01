@@ -12,19 +12,22 @@
 #include "roms/raiders_rom.h"
 #include "roms/zxtest_rom.h"
 #include "roms/esxide085_rom.h"
-#include "roms/didaktik_gama_89_mod_rom.h"
 #include "roms/fatware014_rom.h"
+#include "roms/uniper_splash_rom.h"
 
 #include "zx_signals.h"
 #include "utils.h"
 #include "zx_rd_wr_interrupt.h"
 #include "emu_divide_ports.h"
 
+#include "../zx-soft/uniper_splash_common.h"
+
 //0. 16kb = Divide RAM pages 0,1
 //1. 16kb = Divide RAM pages 2,3
 //2. 16kB = ZX ROM copy
 //3. 16kB = Divide ROM (8kb)
-__attribute__((section(".begin_data1"))) uint8_t device_ram[16384*4];
+//4. 16kB = Uniper Boot ROM
+__attribute__((section(".begin_data1"))) uint8_t device_ram[16384*5];
 
 
 // is DIVIDE memory currently mapped?
@@ -49,16 +52,19 @@ __attribute__((section(".begin_data1"))) uint8_t *high_8k_rom_minus_0x2000_ptr;
 //
 __attribute__((section(".begin_data1"))) uint8_t *high_8k_rom_divide_page_minus_0x2000_ptr;
 
-__attribute__((section(".begin_data1"))) uint8_t *divide_eeprom_addr = device_ram + 3*0x4000; // Divide ROM at startup
+__attribute__((section(".begin_data1"))) uint8_t *divide_eeprom_addr = device_ram + MEM_DIVIDE_ROM_OFFSET; // Divide ROM at startup
+
+__attribute__((section(".begin_data1"))) int sniffing_rom_writes = 0;
+__attribute__((section(".begin_data1"))) int sniffing_rom_writes_done = 0;
 
 
 void emu_memory_fill_zx_rom(const char rom[], int length) {
 	int i;
-	for (i = 0; i < length && i < 16384; i++) device_ram[i+2*16384] = rom[i];
+	for (i = 0; i < length && i < 0x4000; i++) device_ram[i + MEM_ZX_ROM_OFFSET] = rom[i];
 }
 
-void emu_memory_poke_rom(uint16_t addr, uint8_t value) {
-	device_ram[addr+2*16384] = value;
+void emu_memory_poke_uniper_rom(uint16_t addr, uint8_t value) {
+	device_ram[addr + MEM_UNIPER_ROM_OFFSET] = value;
 }
 
 void emu_memory_page_divide_in() {
@@ -69,8 +75,14 @@ void emu_memory_page_divide_in() {
 
 void emu_memory_page_zx_rom_in() {
 	// init pointers
-	low_8k_rom_ptr = device_ram + 2*16384;
-	high_8k_rom_minus_0x2000_ptr = device_ram + 2*16384;
+	low_8k_rom_ptr = device_ram + MEM_ZX_ROM_OFFSET;
+	high_8k_rom_minus_0x2000_ptr = device_ram + MEM_ZX_ROM_OFFSET;
+}
+
+void emu_memory_page_uniper_rom_in() {
+	// init pointers
+	low_8k_rom_ptr = device_ram + MEM_UNIPER_ROM_OFFSET;
+	high_8k_rom_minus_0x2000_ptr = device_ram + MEM_UNIPER_ROM_OFFSET;
 }
 
 void emu_memory_fill_mem() {
@@ -80,9 +92,12 @@ void emu_memory_fill_mem() {
 	// BANK 1
 	// empty at startup
 	// BANK 2
-	emu_memory_fill_zx_rom(didaktik_gama_89_mod_rom, sizeof(didaktik_gama_89_mod_rom));
+	// empty at startup, will be filled during uniper splash boot
 	// BANK 3
-	for (i = 0; i < sizeof(esxide085_rom) && i < 16384; i++) device_ram[i+3*16384] = esxide085_rom[i];
+	for (i = 0; i < sizeof(esxide085_rom) && i < 0x4000; i++) device_ram[i + MEM_DIVIDE_ROM_OFFSET] = esxide085_rom[i];
+	// BANK 4
+	// uniper splash ROM
+	for (i = 0; i < sizeof(uniper_splash_rom) && i < 0x4000; i++) device_ram[i + MEM_UNIPER_ROM_OFFSET] = uniper_splash_rom[i];
 	emu_memory_page_divide_in();
 }
 
@@ -116,8 +131,8 @@ void emu_memory_fill_mem() {
 
 #define divide_memory_set_map_off() { \
 	if (!divide_conmem) { \
-		low_8k_rom_ptr = device_ram + 2*0x4000; \
-		high_8k_rom_minus_0x2000_ptr = device_ram + 2*0x4000; \
+		low_8k_rom_ptr = device_ram + MEM_ZX_ROM_OFFSET; \
+		high_8k_rom_minus_0x2000_ptr = device_ram + MEM_ZX_ROM_OFFSET; \
 		divide_mapped = 0; \
 	} \
 }
@@ -199,7 +214,7 @@ void FAST_CODE divide_control_register_wr() {
 	high_8k_rom_divide_page_minus_0x2000_ptr = device_ram + divide_page*0x2000 - 0x2000;
 	divide_conmem = data & 0x10000000; // CONMEM bit
 	if (divide_conmem) {
-		divide_eeprom_addr = device_ram + 3*0x4000; // Divide ROM
+		divide_eeprom_addr = device_ram + MEM_DIVIDE_ROM_OFFSET; // Divide ROM
 		divide_lowbank_writable = DIVIDE_EEPROM_WRITABLE;
 		divide_highbank_writable = 1; // Divide RAM writable
 	} else {
@@ -209,7 +224,7 @@ void FAST_CODE divide_control_register_wr() {
 			divide_lowbank_writable = 0;
 			divide_highbank_writable = (divide_page != 3); // Divide RAM writable only when not bank 3
 		} else {
-			divide_eeprom_addr = device_ram + 3*0x4000; // Divide ROM
+			divide_eeprom_addr = device_ram + MEM_DIVIDE_ROM_OFFSET; // Divide ROM
 			divide_lowbank_writable = DIVIDE_EEPROM_WRITABLE;
 			divide_highbank_writable = 1; // Divide RAM writable
 		}
@@ -222,6 +237,46 @@ void FAST_CODE divide_control_register_wr() {
 	}
 	while (ZX_IS_IO_WRITE(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
 	CLEAR_ZX_CONTROL_EXTI();
+}
+
+void FAST_CODE zx_mem_rd_16k_sniff() {
+	register uint16_t address = ZX_ADDR_GPIO_PORT->IDR;
+	register uint8_t data = ZX_DATA_GPIO_PORT->IDR;
+	register uint8_t data2 = data;
+	register uint8_t data3 = data;
+	if (!sniffing_rom_writes) {
+		register uint8_t data = device_ram[address + MEM_UNIPER_ROM_OFFSET];
+		ZX_DATA_OUT(data);
+		while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) { }
+		ZX_DATA_HI_Z();
+	} else {
+		// make sure we read the data-bus when data from ROM is present,
+		// so we read multiple times and wait just before MEMREQ+RD is deasserted
+		while (ZX_IS_MEM_READ(ZX_CONTROL_IN_GPIO_PORT->IDR)) {
+			data3 = data2;
+			data2 = data;
+			data = ZX_DATA_GPIO_PORT->IDR;
+		}
+		device_ram[address + MEM_ZX_ROM_OFFSET] = data3;
+	}
+	CLEAR_ZX_RD_EXTI();
+}
+
+void FAST_CODE zx_port_254_wr_sniff() {
+	volatile int data = ZX_DATA_GPIO_PORT->IDR & 0b111;
+	if (data == ZX_SPLASH_ROMREAD_START_BORDER) {
+		sniffing_rom_writes = 1;
+		HIGHZ_ZX_ROMCS(); // let physical ZX ROM to be paged-in by ULA when necessary
+	} else if (data == ZX_SPLASH_ROMREAD_END_BORDER) {
+		sniffing_rom_writes = 0;
+		sniffing_rom_writes_done = 1;
+		DEASSERT_ZX_ROMCS(); // disable physical ZX ROM permanently
+	}
+	CLEAR_ZX_CONTROL_EXTI();
+}
+
+void emu_wait_until_boot_done() {
+	while (!sniffing_rom_writes_done) { }
 }
 
 void emu_default_start() {

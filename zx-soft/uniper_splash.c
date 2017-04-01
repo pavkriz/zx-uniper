@@ -6,6 +6,8 @@
 
 #include "uniper_splash_common.h"
 
+extern void copy_rom2rom();
+
 #define printInk(k)          printf("\x10%c", '0'+k)
 #define printPaper(k)        printf("\x11%c", '0'+k)
 #define printAt(row, col)    printf("\x16%c%c", (col), (row)) 
@@ -48,8 +50,9 @@ void boot_screen() {
    
   //fzx_puts(&fs, "ZX-UNIPER\n\nStarting...");
   
-  while (1) {
-  }
+  //while (1) {
+  //}
+  copy_rom2rom();
 } 
 
 void bsod(char *message, uint16_t param1) {

@@ -171,6 +171,8 @@ int main(void)
 
   int startTick = HAL_GetTick();
 
+  emu_wait_until_boot_done();
+
   emu_default_start();
 
   while (1)
